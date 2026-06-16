@@ -1,0 +1,278 @@
+
+---
+
+## 📄 5. SQL do Banco de Dados (para executar no Supabase)
+
+```sql
+-- ============================================================
+-- TABELA: usuarios
+-- ============================================================
+CREATE TABLE usuarios (
+    id BIGSERIAL PRIMARY KEY,
+    uid UUID UNIQUE,
+    nome VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    senha VARCHAR(255) NOT NULL,
+    operacao VARCHAR(100),
+    tipo VARCHAR(50) DEFAULT 'user',
+    status VARCHAR(50) DEFAULT 'pendente',
+    data_cadastro TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: produtos
+-- ============================================================
+CREATE TABLE produtos (
+    id BIGSERIAL PRIMARY KEY,
+    tracking VARCHAR(50),
+    cl VARCHAR(20),
+    alt VARCHAR(20),
+    pn VARCHAR(100) NOT NULL,
+    descricao VARCHAR(500) NOT NULL,
+    categoria VARCHAR(100),
+    quantidade INTEGER DEFAULT 0,
+    localizacao VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'good',
+    valor DECIMAL(10,2) DEFAULT 0,
+    observacoes TEXT,
+    data_cadastro DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: solicitacoes
+-- ============================================================
+CREATE TABLE solicitacoes (
+    id BIGSERIAL PRIMARY KEY,
+    produto_id BIGINT REFERENCES produtos(id) ON DELETE CASCADE,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE CASCADE,
+    quantidade INTEGER NOT NULL,
+    data DATE DEFAULT CURRENT_DATE,
+    status VARCHAR(50) DEFAULT 'pendente',
+    observacoes TEXT,
+    justificativa TEXT,
+    defeito BOOLEAN DEFAULT FALSE,
+    usuario_nome VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: entradas
+-- ============================================================
+CREATE TABLE entradas (
+    id BIGSERIAL PRIMARY KEY,
+    produto_id BIGINT REFERENCES produtos(id) ON DELETE CASCADE,
+    quantidade INTEGER NOT NULL,
+    localizacao VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'good',
+    data DATE DEFAULT CURRENT_DATE,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    observacoes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: saidas
+-- ============================================================
+CREATE TABLE saidas (
+    id BIGSERIAL PRIMARY KEY,
+    produto_id BIGINT REFERENCES produtos(id) ON DELETE CASCADE,
+    quantidade INTEGER NOT NULL,
+    data DATE DEFAULT CURRENT_DATE,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    operacao VARCHAR(100),
+    status VARCHAR(50) DEFAULT 'separando',
+    observacoes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: operacoes
+-- ============================================================
+CREATE TABLE operacoes (
+    id BIGSERIAL PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    descricao TEXT,
+    responsavel VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'ativo',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: auditoria
+-- ============================================================
+CREATE TABLE auditoria (
+    id BIGSERIAL PRIMARY KEY,
+    data TIMESTAMP DEFAULT NOW(),
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    usuario_nome VARCHAR(255),
+    acao VARCHAR(100),
+    detalhes TEXT,
+    ip VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: fora_estoque
+-- ============================================================
+CREATE TABLE fora_estoque (
+    id BIGSERIAL PRIMARY KEY,
+    produto_id BIGINT REFERENCES produtos(id) ON DELETE CASCADE,
+    tracking VARCHAR(50),
+    pn VARCHAR(100),
+    descricao VARCHAR(500),
+    quantidade INTEGER,
+    motivo VARCHAR(100),
+    justificativa TEXT,
+    data DATE DEFAULT CURRENT_DATE,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: backups
+-- ============================================================
+CREATE TABLE backups (
+    id BIGSERIAL PRIMARY KEY,
+    data TIMESTAMP DEFAULT NOW(),
+    tipo VARCHAR(50),
+    tamanho VARCHAR(50),
+    dados JSONB,
+    usuario_id BIGINT REFERENCES usuarios(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- TABELA: configuracoes
+-- ============================================================
+CREATE TABLE configuracoes (
+    id BIGSERIAL PRIMARY KEY,
+    chave VARCHAR(100) UNIQUE NOT NULL,
+    valor TEXT,
+    descricao TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================================
+-- INSERIR DADOS INICIAIS
+-- ============================================================
+
+-- Usuários
+INSERT INTO usuarios (nome, email, senha, operacao, tipo, status) VALUES
+('Administrador', 'admin@sdi.com', 'admin123', 'TI', 'admin', 'ativo'),
+('João Silva', 'joao@sdi.com', '123456', 'Operação A', 'user', 'ativo'),
+('Maria Santos', 'maria@sdi.com', '123456', 'Operação B', 'user', 'pendente');
+
+-- Produtos
+INSERT INTO produtos (tracking, cl, alt, pn, descricao, categoria, quantidade, localizacao, status, valor) VALUES
+('TRK-001', 'A1', '001', '0F6F1F', 'Mainboard Dell Latitude 5490', 'Mainboard', 5, 'A-01', 'good', 450.00),
+('TRK-002', 'B3', '002', 'M471A1K43BB1-CRC', 'Memória RAM 8GB DDR4', 'Memória', 12, 'B-03', 'good', 180.00),
+('TRK-003', 'C2', '003', 'BX80684I58500', 'Processador Intel i5 8ª Geração', 'Processador', 3, 'C-02', 'good', 650.00),
+('TRK-004', 'D1', '004', 'L13359-001', 'LCD 14" HP ProBook 450 G6', 'LCD', 2, 'D-01', 'refurbished', 320.00),
+('TRK-005', 'E4', '005', '0C27V6', 'Teclado ABNT2 Dell Latitude', 'Teclado', 8, 'E-04', 'good', 85.00),
+('TRK-006', 'F2', '006', 'LA65NS2-01', 'Adapter 65W Dell', 'Adapter', 15, 'F-02', 'good', 120.00),
+('TRK-007', 'A5', '007', 'L60553-001', 'Mainboard HP EliteBook 840 G5', 'Mainboard', 0, 'A-05', 'bad', 520.00);
+
+-- Operações
+INSERT INTO operacoes (nome, descricao, responsavel) VALUES
+('Operação A', 'Operação principal de manutenção', 'João Silva'),
+('Operação B', 'Operação secundária de suporte', 'Maria Santos'),
+('TI', 'Departamento de Tecnologia da Informação', 'Administrador');
+
+-- Solicitações
+INSERT INTO solicitacoes (produto_id, usuario_id, quantidade, data, status, observacoes, usuario_nome) VALUES
+(2, 2, 2, '2023-04-10', 'entregue', 'Necessário para manutenção', 'João Silva'),
+(5, 2, 1, '2023-04-12', 'pendente', 'Teclado com tecla espaço com defeito', 'João Silva'),
+(3, 3, 1, '2023-04-15', 'aguardando', 'Para upgrade', 'Maria Santos');
+
+-- Entradas
+INSERT INTO entradas (produto_id, quantidade, localizacao, status, data, usuario_id) VALUES
+(1, 5, 'A-01', 'good', '2023-01-10', 1),
+(2, 12, 'B-03', 'good', '2023-01-15', 1);
+
+-- Saídas
+INSERT INTO saidas (produto_id, quantidade, data, usuario_id, operacao, status) VALUES
+(2, 2, '2023-04-11', 2, 'Operação A', 'entregue');
+
+-- Configurações
+INSERT INTO configuracoes (chave, valor, descricao) VALUES
+('estoque_minimo', '5', 'Quantidade mínima para alerta de estoque baixo'),
+('backup_frequencia', 'semanal', 'Frequência de backup automático'),
+('notificacoes', 'true', 'Habilitar notificações do sistema');
+
+-- ============================================================
+-- CRIAR ÍNDICES PARA PERFORMANCE
+-- ============================================================
+
+CREATE INDEX idx_produtos_descricao ON produtos(descricao);
+CREATE INDEX idx_produtos_pn ON produtos(pn);
+CREATE INDEX idx_solicitacoes_status ON solicitacoes(status);
+CREATE INDEX idx_solicitacoes_usuario ON solicitacoes(usuario_id);
+CREATE INDEX idx_entradas_data ON entradas(data);
+CREATE INDEX idx_saidas_data ON saidas(data);
+CREATE INDEX idx_auditoria_data ON auditoria(data DESC);
+
+-- ============================================================
+-- ATIVAR RLS (Row Level Security)
+-- ============================================================
+
+ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE produtos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE solicitacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entradas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saidas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE operacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE auditoria ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fora_estoque ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracoes ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- POLÍTICAS DE SEGURANÇA
+-- ============================================================
+
+-- Usuários
+CREATE POLICY usuarios_select ON usuarios FOR SELECT USING (true);
+CREATE POLICY usuarios_update ON usuarios FOR UPDATE USING (auth.uid() = uid OR auth.role() = 'admin');
+
+-- Produtos
+CREATE POLICY produtos_select ON produtos FOR SELECT USING (true);
+CREATE POLICY produtos_write ON produtos FOR INSERT UPDATE DELETE USING (auth.role() = 'admin');
+
+-- Solicitações
+CREATE POLICY solicitacoes_select ON solicitacoes FOR SELECT USING (true);
+CREATE POLICY solicitacoes_insert ON solicitacoes FOR INSERT WITH CHECK (true);
+CREATE POLICY solicitacoes_update ON solicitacoes FOR UPDATE USING (auth.role() = 'admin');
+
+-- Entradas
+CREATE POLICY entradas_select ON entradas FOR SELECT USING (true);
+CREATE POLICY entradas_write ON entradas FOR INSERT UPDATE DELETE USING (auth.role() = 'admin');
+
+-- Saídas
+CREATE POLICY saidas_select ON saidas FOR SELECT USING (true);
+CREATE POLICY saidas_insert ON saidas FOR INSERT WITH CHECK (true);
+
+-- Operações
+CREATE POLICY operacoes_select ON operacoes FOR SELECT USING (true);
+CREATE POLICY operacoes_write ON operacoes FOR INSERT UPDATE DELETE USING (auth.role() = 'admin');
+
+-- Auditoria
+CREATE POLICY auditoria_select ON auditoria FOR SELECT USING (auth.role() = 'admin');
+CREATE POLICY auditoria_insert ON auditoria FOR INSERT WITH CHECK (true);
+
+-- ForaEstoque
+CREATE POLICY fora_estoque_select ON fora_estoque FOR SELECT USING (auth.role() = 'admin');
+CREATE POLICY fora_estoque_write ON fora_estoque FOR INSERT UPDATE DELETE USING (auth.role() = 'admin');
+
+-- Backups
+CREATE POLICY backups_select ON backups FOR SELECT USING (auth.role() = 'admin');
+CREATE POLICY backups_write ON backups FOR INSERT UPDATE DELETE USING (auth.role() = 'admin');

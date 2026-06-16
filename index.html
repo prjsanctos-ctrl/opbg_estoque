@@ -1,0 +1,3279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDI - Controle de Estoque</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <style>
+        /* ===== VARIÁVEIS ===== */
+        :root {
+            --primary: #0d1b4a;
+            --primary-light: #1a3a7a;
+            --primary-dark: #070f2a;
+            --secondary: #2d6ac7;
+            --success: #1b8c4a;
+            --warning: #d4880f;
+            --danger: #b71c1c;
+            --info: #0d6b7a;
+            --gray-50: #f8f9fc;
+            --gray-100: #f0f2f6;
+            --gray-200: #e2e5ed;
+            --gray-300: #c5c9d6;
+            --gray-600: #6b7280;
+            --gray-900: #1a1a2e;
+            --shadow: 0 4px 24px rgba(13, 27, 74, 0.08);
+            --shadow-hover: 0 8px 40px rgba(13, 27, 74, 0.14);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --sidebar-width: 260px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-900);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* ===== LOGIN ===== */
+        .login-page {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 50%, var(--primary-light) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+        .login-page.hidden { display: none; }
+        .login-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: fadeIn 0.5s ease;
+        }
+        .login-card .logo { text-align: center; margin-bottom: 30px; }
+        .login-card .logo h2 { color: var(--primary); font-weight: 700; }
+        .login-card .logo h2 i { color: var(--secondary); }
+        .login-card .logo p { color: var(--gray-600); font-size: 0.9rem; }
+        .login-card .form-label { font-weight: 600; font-size: 0.85rem; }
+        .login-card .btn-primary { width: 100%; padding: 12px; font-weight: 600; }
+        .login-error { color: var(--danger); font-size: 0.85rem; margin-top: 10px; display: none; }
+        .login-error.show { display: block; }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: var(--gray-100); }
+        ::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--primary-dark) 0%, var(--primary) 50%, var(--primary-light) 100%);
+            color: white;
+            z-index: 1050;
+            transition: var(--transition);
+            overflow-y: auto;
+            box-shadow: 4px 0 30px rgba(0,0,0,0.15);
+        }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+        .sidebar-brand {
+            padding: 20px 16px 14px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .sidebar-brand h3 { font-size: 1rem; font-weight: 700; margin: 0; }
+        .sidebar-brand h3 i { color: #6d9eff; margin-right: 6px; }
+        .sidebar-brand small { font-size: 0.6rem; opacity: 0.6; display: block; margin-top: 2px; }
+
+        .sidebar-user {
+            padding: 10px 14px;
+            margin: 10px 12px 12px;
+            background: rgba(255,255,255,0.06);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .sidebar-user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6d9eff, #4a7fd4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+            color: white;
+        }
+        .sidebar-user-info { flex: 1; min-width: 0; }
+        .sidebar-user-info .name { font-weight: 600; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-user-info .operation { font-size: 0.65rem; opacity: 0.6; }
+
+        .sidebar-nav { padding: 6px 10px 20px; }
+        .sidebar-nav .nav-label { font-size: 0.55rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.4; padding: 10px 10px 4px; font-weight: 600; }
+        .sidebar-nav .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 7px 12px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+            gap: 10px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            position: relative;
+        }
+        .sidebar-nav .nav-link:hover { background: rgba(255,255,255,0.08); color: white; transform: translateX(3px); }
+        .sidebar-nav .nav-link.active { background: rgba(255,255,255,0.12); color: white; box-shadow: inset 3px 0 0 #6d9eff; }
+        .sidebar-nav .nav-link i { width: 18px; text-align: center; font-size: 0.85rem; }
+        .sidebar-nav .nav-link .badge-notification {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--danger);
+            color: white;
+            font-size: 0.55rem;
+            padding: 1px 7px;
+            border-radius: 20px;
+            font-weight: 700;
+            min-width: 18px;
+            text-align: center;
+        }
+        .sidebar-nav .nav-link .badge-notification.d-none { display: none !important; }
+
+        /* ===== MAIN ===== */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            height: 100vh;
+            overflow-y: auto;
+            background: var(--gray-50);
+        }
+        .main-content .page-content { padding: 16px 20px 30px; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ===== TOPBAR ===== */
+        .topbar {
+            background: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+            background: rgba(255,255,255,0.92);
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .topbar .page-title { font-size: 1.1rem; font-weight: 700; color: var(--primary); margin: 0; display: flex; align-items: center; gap: 8px; }
+        .topbar .page-title i { color: var(--secondary); }
+        .topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .topbar-actions .search-box { position: relative; }
+        .topbar-actions .search-box input {
+            padding: 6px 12px 6px 32px;
+            border-radius: 20px;
+            border: 2px solid var(--gray-200);
+            background: var(--gray-50);
+            transition: var(--transition);
+            width: 160px;
+            font-size: 0.8rem;
+        }
+        .topbar-actions .search-box input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: white;
+            width: 220px;
+            box-shadow: 0 0 0 3px rgba(45,106,199,0.08);
+        }
+        .topbar-actions .search-box i {
+            position: absolute;
+            left: 11px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-600);
+            font-size: 0.8rem;
+        }
+        .topbar-actions .btn { font-size: 0.75rem; padding: 6px 14px; }
+
+        /* ===== CARDS ===== */
+        .card { border: none; border-radius: var(--radius); box-shadow: var(--shadow); transition: var(--transition); background: white; overflow: hidden; }
+        .card:hover { box-shadow: var(--shadow-hover); }
+        .card-header { background: white; border-bottom: 1px solid var(--gray-200); padding: 12px 18px; font-weight: 600; color: var(--primary); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 0.9rem; }
+        .card-body { padding: 16px 18px; }
+
+        /* ===== STATS ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+        .stat-card .icon {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        .stat-card .icon.blue { background: linear-gradient(135deg, var(--primary), var(--secondary)); }
+        .stat-card .icon.green { background: linear-gradient(135deg, #0d6e3a, var(--success)); }
+        .stat-card .icon.orange { background: linear-gradient(135deg, #b86a0a, var(--warning)); }
+        .stat-card .icon.red { background: linear-gradient(135deg, #8b1a1a, var(--danger)); }
+        .stat-card .icon.purple { background: linear-gradient(135deg, #4a1a6b, #7c3aed); }
+        .stat-card .icon.teal { background: linear-gradient(135deg, #0a5a6a, var(--info)); }
+        .stat-card .info { flex: 1; min-width: 0; }
+        .stat-card .info .value { font-size: 1.2rem; font-weight: 700; color: var(--primary); line-height: 1.2; }
+        .stat-card .info .label { font-size: 0.65rem; color: var(--gray-600); font-weight: 500; }
+
+        /* ===== TABLES ===== */
+        .table-responsive { overflow-x: auto; }
+        .table { margin: 0; font-size: 0.78rem; }
+        .table th {
+            background: var(--gray-50);
+            color: var(--primary);
+            font-weight: 600;
+            border-bottom: 2px solid var(--gray-200);
+            padding: 8px 10px;
+            white-space: nowrap;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .table td { padding: 8px 10px; vertical-align: middle; border-bottom: 1px solid var(--gray-100); }
+        .table tbody tr:hover { background: var(--gray-50); }
+        .table .badge { font-weight: 500; padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; }
+
+        /* ===== BADGES ===== */
+        .badge-good { background: #d4edda; color: #155724; }
+        .badge-bad { background: #f8d7da; color: #721c24; }
+        .badge-refurbished { background: #fff3cd; color: #856404; }
+        .badge-obsoleto { background: #e2e3e5; color: #383d41; }
+        .badge-pendente { background: #fff3cd; color: #856404; }
+        .badge-aprovada { background: #cce5ff; color: #004085; }
+        .badge-rejeitada { background: #f8d7da; color: #721c24; }
+        .badge-entregue { background: #d4edda; color: #155724; }
+        .badge-aguardando { background: #fff3cd; color: #856404; }
+        .badge-separando { background: #d6d8e0; color: #1a1a3e; }
+        .badge-cancelada { background: #e2e3e5; color: #383d41; }
+        .badge-ativo { background: #d4edda; color: #155724; }
+        .badge-inativo { background: #e2e3e5; color: #383d41; }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            border-radius: var(--radius-sm);
+            padding: 6px 14px;
+            font-weight: 500;
+            transition: var(--transition);
+            font-size: 0.78rem;
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-light); border-color: var(--primary-light); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(13,27,74,0.25); }
+        .btn-success { background: var(--success); border-color: var(--success); }
+        .btn-success:hover { background: #0d6e3a; border-color: #0d6e3a; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(27,140,74,0.25); }
+        .btn-danger { background: var(--danger); border-color: var(--danger); }
+        .btn-danger:hover { background: #8b1a1a; border-color: #8b1a1a; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(183,28,28,0.25); }
+        .btn-outline-primary { color: var(--primary); border-color: var(--gray-300); }
+        .btn-outline-primary:hover { background: var(--primary); border-color: var(--primary); color: white; }
+        .btn-sm { padding: 4px 10px; font-size: 0.7rem; }
+        .btn-icon {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+        }
+
+        /* ===== MODALS ===== */
+        .modal-content { border-radius: var(--radius); border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .modal-header { border-bottom: 1px solid var(--gray-200); padding: 14px 20px; }
+        .modal-header .modal-title { font-weight: 700; color: var(--primary); font-size: 1rem; }
+        .modal-body { padding: 20px; }
+        .modal-footer { border-top: 1px solid var(--gray-200); padding: 14px 20px; }
+        .modal-footer .btn { font-size: 0.78rem; }
+
+        /* ===== AUTOCOMPLETE ===== */
+        .autocomplete-container { position: relative; }
+        .autocomplete-container .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-sm);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: var(--shadow-hover);
+            display: none;
+        }
+        .autocomplete-container .autocomplete-list.show { display: block; }
+        .autocomplete-container .autocomplete-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--gray-100);
+            transition: var(--transition);
+            font-size: 0.8rem;
+        }
+        .autocomplete-container .autocomplete-item:hover { background: var(--gray-50); }
+        .autocomplete-container .autocomplete-item .qtd {
+            font-size: 0.65rem;
+            color: var(--gray-600);
+            background: var(--gray-100);
+            padding: 1px 8px;
+            border-radius: 20px;
+        }
+        .autocomplete-container .autocomplete-item .qtd.baixo { background: #f8d7da; color: var(--danger); }
+        .autocomplete-container .autocomplete-item .qtd.zerado { background: #f8d7da; color: var(--danger); font-weight: 700; }
+
+        /* ===== ETIQUETA ===== */
+        .etiqueta-print { width: 80mm; height: 50mm; padding: 3mm; background: white; border: 1px solid #ddd; font-family: 'Courier New', monospace; font-size: 7pt; display: none; }
+        @media print { body * { visibility: hidden; } .etiqueta-print, .etiqueta-print * { visibility: visible; } .etiqueta-print { display: block; position: absolute; left: 0; top: 0; width: 80mm; height: 50mm; padding: 3mm; border: none; font-size: 7pt; } .no-print { display: none !important; } }
+
+        /* ===== TOAST ===== */
+        .toast-container { position: fixed; top: 70px; right: 15px; z-index: 9999; }
+        .toast-custom {
+            background: white;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            padding: 10px 16px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 240px;
+            max-width: 380px;
+            animation: slideIn 0.3s ease;
+            border-left: 4px solid var(--success);
+            font-size: 0.82rem;
+        }
+        .toast-custom.error { border-left-color: var(--danger); }
+        .toast-custom.warning { border-left-color: var(--warning); }
+        .toast-custom.info { border-left-color: var(--info); }
+        .toast-custom .message { flex: 1; font-size: 0.82rem; color: #333; }
+        .toast-custom .close-btn { background: none; border: none; color: #999; cursor: pointer; font-size: 0.9rem; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* ===== RESPONSIVE ===== */
+        .mobile-toggle { display: none; background: none; border: none; color: var(--primary); font-size: 1.3rem; padding: 4px; cursor: pointer; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1040; }
+        .sidebar-overlay.active { display: block; }
+
+        .estoque-zerado-alert { background: #f8d7da; border: 1px solid #f5c6cb; border-radius: var(--radius-sm); padding: 8px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; color: #721c24; font-size: 0.8rem; }
+        .estoque-zerado-alert i { font-size: 1rem; }
+        .estoque-baixo-alert { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: var(--radius-sm); padding: 8px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; color: #856404; font-size: 0.8rem; flex-wrap: wrap; }
+        .estoque-baixo-alert i { font-size: 1rem; }
+        .estoque-baixo-alert .count { background: var(--danger); color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+
+        .td-actions { display: flex; flex-wrap: wrap; gap: 3px; }
+        .td-actions .btn { padding: 2px 6px; font-size: 0.6rem; }
+        .td-actions .btn-icon { width: 24px; height: 24px; font-size: 0.6rem; }
+
+        @media (max-width: 992px) {
+            .sidebar { transform: translateX(-100%); width: 260px; }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .mobile-toggle { display: block; }
+            .topbar .page-title { font-size: 0.95rem; }
+            .topbar-actions .search-box input { width: 130px; }
+            .topbar-actions .search-box input:focus { width: 170px; }
+            .stats-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+            .stat-card .info .value { font-size: 0.95rem; }
+            .table { font-size: 0.72rem; }
+            .table th, .table td { padding: 6px 8px; }
+            .btn { font-size: 0.7rem; padding: 5px 10px; }
+            .card-header { font-size: 0.82rem; padding: 10px 14px; }
+            .card-body { padding: 12px 14px; }
+            .modal-body { padding: 16px; }
+            .modal-header { padding: 12px 16px; }
+            .modal-footer { padding: 12px 16px; }
+            .topbar { padding: 8px 14px; }
+            .page-content { padding: 12px 14px !important; }
+        }
+
+        @media (max-width: 768px) {
+            .topbar-actions { width: 100%; gap: 6px; }
+            .topbar-actions .search-box { flex: 1; min-width: 100px; }
+            .topbar-actions .search-box input { width: 100%; }
+            .topbar-actions .search-box input:focus { width: 100%; }
+            .topbar-actions .btn { font-size: 0.7rem; padding: 4px 10px; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+            .stat-card { padding: 10px 10px; gap: 8px; flex-direction: column; text-align: center; }
+            .stat-card .icon { width: 30px; height: 30px; font-size: 0.8rem; }
+            .stat-card .info .value { font-size: 0.9rem; }
+            .stat-card .info .label { font-size: 0.6rem; }
+            .table { font-size: 0.65rem; }
+            .table th, .table td { padding: 4px 6px; }
+            .table .badge { font-size: 0.6rem; padding: 2px 6px; }
+            .btn-icon { width: 26px; height: 26px; font-size: 0.65rem; }
+            .login-card { padding: 24px; }
+            .modal-dialog { margin: 10px; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 4px; }
+            .stat-card { padding: 8px 6px; gap: 4px; }
+            .stat-card .icon { width: 26px; height: 26px; font-size: 0.7rem; }
+            .stat-card .info .value { font-size: 0.8rem; }
+            .stat-card .info .label { font-size: 0.55rem; }
+            .topbar .page-title { font-size: 0.8rem; }
+            .topbar-actions .btn { font-size: 0.6rem; padding: 3px 8px; }
+            .table { font-size: 0.58rem; }
+            .table th, .table td { padding: 3px 4px; }
+            .card-header { font-size: 0.75rem; padding: 8px 10px; }
+            .card-body { padding: 8px 10px; }
+            .btn { font-size: 0.6rem; padding: 3px 7px; }
+            .btn-sm { padding: 2px 6px; font-size: 0.55rem; }
+            .modal-body { padding: 12px; }
+            .toast-custom { min-width: 200px; font-size: 0.75rem; padding: 8px 12px; }
+            .td-actions .btn { font-size: 0.55rem; padding: 1px 4px; }
+            .td-actions .btn-icon { width: 20px; height: 20px; font-size: 0.55rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== LOGIN PAGE ===== -->
+    <div class="login-page" id="loginPage">
+        <div class="login-card">
+            <div class="logo">
+                <h2><i class="fas fa-microchip"></i> SDI Estoque</h2>
+                <p>Sistema de Controle de Peças</p>
+            </div>
+            <form id="formLogin" novalidate>
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-control" id="loginEmail" value="admin@sdi.com" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="loginSenha" value="admin123" required>
+                </div>
+                <div class="login-error" id="loginError">Email ou senha inválidos.</div>
+                <button type="submit" class="btn btn-primary" id="btnLogin">
+                    <i class="fas fa-spinner fa-spin me-2 d-none" id="loginSpinner"></i>
+                    <span id="loginText">Entrar</span>
+                </button>
+                <div class="mt-3 text-center text-muted small">
+                    <span>admin@sdi.com / admin123</span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== OVERLAY ===== -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <h3><i class="fas fa-microchip"></i>SDI Estoque</h3>
+            <small>Sistema de Controle de Peças</small>
+        </div>
+
+        <div class="sidebar-user" id="sidebarUser">
+            <div class="sidebar-user-avatar" id="userAvatar">A</div>
+            <div class="sidebar-user-info">
+                <div class="name" id="userName">Administrador</div>
+                <div class="operation" id="userOperation">TI</div>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-label">Menu Principal</div>
+            <a class="nav-link active" data-page="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a class="nav-link" data-page="estoque"><i class="fas fa-boxes"></i> Estoque <span class="badge-notification d-none" id="estoqueBaixoBadge">0</span></a>
+            <a class="nav-link" data-page="minhas-solicitacoes"><i class="fas fa-clipboard-check"></i> Minhas Solicitações</a>
+            <a class="nav-link" data-page="entrada"><i class="fas fa-arrow-down"></i> Entrada</a>
+            <a class="nav-link" data-page="saida"><i class="fas fa-arrow-up"></i> Saída</a>
+            <a class="nav-link" data-page="solicitacoes"><i class="fas fa-clipboard-list"></i> Solicitações <span class="badge-notification d-none" id="solicitacoesBadge">0</span></a>
+            <a class="nav-link" data-page="produtos"><i class="fas fa-microchip"></i> Peças</a>
+            <a class="nav-link" data-page="usuarios"><i class="fas fa-users"></i> Usuários <span class="badge-notification d-none" id="usuariosBadge">0</span></a>
+            <a class="nav-link admin-only d-none" data-page="valores"><i class="fas fa-dollar-sign"></i> Valores</a>
+            <a class="nav-link" data-page="operacoes"><i class="fas fa-cogs"></i> Operações</a>
+            <a class="nav-link admin-only d-none" data-page="relatorios"><i class="fas fa-chart-bar"></i> Relatórios</a>
+            <a class="nav-link admin-only d-none" data-page="backup"><i class="fas fa-database"></i> Backup</a>
+            <a class="nav-link admin-only d-none" data-page="auditoria"><i class="fas fa-history"></i> Auditoria</a>
+            <a class="nav-link admin-only d-none" data-page="fora-estoque"><i class="fas fa-archive"></i> Fora do Estoque</a>
+
+            <div class="nav-label" style="margin-top:12px;">Configurações</div>
+            <a class="nav-link" data-page="cadastro-usuario"><i class="fas fa-user-plus"></i> Cadastrar Usuário</a>
+            <a class="nav-link" id="logoutBtn" style="color: #f8a5a5;"><i class="fas fa-sign-out-alt"></i> Sair</a>
+        </nav>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main-content d-none" id="mainContent">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button class="mobile-toggle" id="mobileToggle"><i class="fas fa-bars"></i></button>
+                <h1 class="page-title" id="pageTitle"><i class="fas fa-tachometer-alt"></i> Dashboard</h1>
+            </div>
+            <div class="topbar-actions">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="globalSearch" placeholder="Buscar peça ou PN...">
+                </div>
+                <button class="btn btn-primary btn-sm" id="btnNovaSolicitacaoTop"><i class="fas fa-plus"></i> Solicitar</button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD -->
+        <div class="page-content" id="page-dashboard">
+            <div class="stats-grid">
+                <div class="stat-card"><div class="icon blue"><i class="fas fa-microchip"></i></div><div class="info"><div class="value" id="statTotalProdutos">0</div><div class="label">Total de Peças</div></div></div>
+                <div class="stat-card"><div class="icon orange"><i class="fas fa-clipboard-list"></i></div><div class="info"><div class="value" id="statSolicitacoesPendentes">0</div><div class="label">Solicitações Pendentes</div></div></div>
+                <div class="stat-card admin-only d-none"><div class="icon green"><i class="fas fa-dollar-sign"></i></div><div class="info"><div class="value" id="statValorEstoque">R$ 0</div><div class="label">Valor do Estoque</div></div></div>
+                <div class="stat-card"><div class="icon red"><i class="fas fa-exclamation-triangle"></i></div><div class="info"><div class="value" id="statEstoqueBaixo">0</div><div class="label">Estoque Baixo</div></div></div>
+                <div class="stat-card"><div class="icon purple"><i class="fas fa-users"></i></div><div class="info"><div class="value" id="statUsuarios">0</div><div class="label">Usuários Ativos</div></div></div>
+                <div class="stat-card"><div class="icon teal"><i class="fas fa-exchange-alt"></i></div><div class="info"><div class="value" id="statMovimentacoes">0</div><div class="label">Movimentações (mês)</div></div></div>
+            </div>
+
+            <div id="estoqueBaixoAlert" class="estoque-baixo-alert d-none">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><strong>Peças com estoque baixo:</strong> <span id="estoqueBaixoLista"></span></span>
+                <span class="count" id="estoqueBaixoCount">0</span>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header"><span><i class="fas fa-chart-line"></i> Movimentação Recente</span><span class="badge bg-primary" id="totalMovimentacoes">0 movimentações</span></div>
+                        <div class="card-body" style="padding:0;">
+                            <div class="table-responsive">
+                                <table class="table table-hover" style="margin:0;">
+                                    <thead><tr><th>Data</th><th>Peça</th><th>Tipo</th><th>Qtd</th><th>Usuário</th></tr></thead>
+                                    <tbody id="movimentacaoRecente"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header"><span><i class="fas fa-chart-pie"></i> Distribuição</span></div>
+                        <div class="card-body"><div style="height:220px;"><canvas id="dashboardChart"></canvas></div></div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header"><span><i class="fas fa-bolt"></i> Ações Rápidas</span></div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" id="quickSolicitar"><i class="fas fa-plus-circle me-2"></i> Nova Solicitação</button>
+                                <button class="btn btn-success" id="quickEntrada"><i class="fas fa-arrow-down me-2"></i> Nova Entrada</button>
+                                <button class="btn btn-outline-primary" id="quickRelatorio"><i class="fas fa-file-pdf me-2"></i> Gerar Relatório</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESTOQUE -->
+        <div class="page-content d-none" id="page-estoque">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-boxes me-2"></i>Gerenciar Estoque</h5>
+                <div class="d-flex gap-2 flex-wrap">
+                    <div class="search-box" style="position:relative;">
+                        <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-600);font-size:0.75rem;"></i>
+                        <input type="text" id="estoqueSearch" placeholder="Buscar..." style="padding:5px 10px 5px 28px;border-radius:20px;border:2px solid var(--gray-200);width:140px;font-size:0.75rem;">
+                    </div>
+                    <select class="form-select form-select-sm" id="estoqueFiltroCategoria" style="width:auto;font-size:0.75rem;padding:4px 8px;">
+                        <option value="todos">Todas</option>
+                        <option value="Mainboard">Mainboard</option>
+                        <option value="Memória">Memória</option>
+                        <option value="Processador">Processador</option>
+                        <option value="LCD">LCD</option>
+                        <option value="Teclado">Teclado</option>
+                        <option value="Adapter">Adapter</option>
+                        <option value="Bateria">Bateria</option>
+                        <option value="Fonte">Fonte</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" id="btnNovoProduto"><i class="fas fa-plus"></i> Nova</button>
+                </div>
+            </div>
+
+            <div id="estoqueBaixoAlertPage" class="estoque-baixo-alert d-none">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><strong>Peças com estoque baixo:</strong> <span id="estoqueBaixoListaPage"></span></span>
+                <span class="count" id="estoqueBaixoCountPage">0</span>
+            </div>
+
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead>
+                                <tr><th>Tracking</th><th>CL</th><th>Alt</th><th>Part No.</th><th>Descrição</th><th>Categoria</th><th>Qtd</th><th>Local</th><th>Status</th><th>Ações</th></tr>
+                            </thead>
+                            <tbody id="estoqueTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="estoquePaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="estoquePagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- MINHAS SOLICITAÇÕES -->
+        <div class="page-content d-none" id="page-minhas-solicitacoes">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-clipboard-check me-2"></i>Minhas Solicitações</h5>
+                <button class="btn btn-primary btn-sm" id="btnNovaSolicitacao"><i class="fas fa-plus"></i> Nova</button>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>ID</th><th>Peça</th><th>Qtd</th><th>Data</th><th>Status</th><th>Obs</th><th>Ações</th></tr></thead>
+                            <tbody id="minhasSolicitacoesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="minhasSolicitacoesInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="minhasSolicitacoesPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- ENTRADA -->
+        <div class="page-content d-none" id="page-entrada">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-arrow-down me-2"></i>Entrada</h5>
+                <button class="btn btn-success btn-sm" id="btnNovaEntrada"><i class="fas fa-plus"></i> Nova</button>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>ID</th><th>Peça</th><th>Qtd</th><th>Local</th><th>Status</th><th>Data</th><th>Usuário</th></tr></thead>
+                            <tbody id="entradaTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="entradaPaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="entradaPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- SAÍDA -->
+        <div class="page-content d-none" id="page-saida">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-arrow-up me-2"></i>Saída</h5>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>ID</th><th>Peça</th><th>Qtd</th><th>Data</th><th>Usuário</th><th>Status</th><th>Ações</th></tr></thead>
+                            <tbody id="saidaTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="saidaPaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="saidaPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- SOLICITAÇÕES (ADMIN) -->
+        <div class="page-content d-none" id="page-solicitacoes">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-clipboard-list me-2"></i>Solicitações</h5>
+                <select class="form-select form-select-sm" id="solicitacoesFiltroStatus" style="width:auto;font-size:0.75rem;padding:4px 8px;">
+                    <option value="todos">Todos</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="aprovada">Aprovada</option>
+                    <option value="separando">Separando</option>
+                    <option value="entregue">Entregue</option>
+                    <option value="rejeitada">Rejeitada</option>
+                    <option value="aguardando">Aguardando Estoque</option>
+                </select>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>ID</th><th>Peça</th><th>Qtd</th><th>Usuário</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead>
+                            <tbody id="solicitacoesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="solicitacoesPaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="solicitacoesPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- PEÇAS -->
+        <div class="page-content d-none" id="page-produtos">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-microchip me-2"></i>Peças</h5>
+                <button class="btn btn-primary btn-sm" id="btnNovoProdutoGestao"><i class="fas fa-plus"></i> Nova</button>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Tracking</th><th>CL</th><th>Alt</th><th>Part No.</th><th>Descrição</th><th>Categoria</th><th>Qtd</th><th>Local</th><th>Status</th><th>Ações</th></tr></thead>
+                            <tbody id="produtosTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="produtosPaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="produtosPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- USUÁRIOS -->
+        <div class="page-content d-none" id="page-usuarios">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-users me-2"></i>Usuários</h5>
+                <button class="btn btn-primary btn-sm" id="btnNovoUsuario"><i class="fas fa-user-plus"></i> Novo</button>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Nome</th><th>Email</th><th>Operação</th><th>Tipo</th><th>Status</th><th>Ações</th></tr></thead>
+                            <tbody id="usuariosTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span id="usuariosPaginationInfo" style="font-size:0.75rem;">Mostrando 0 de 0</span>
+                    <nav><ul class="pagination pagination-sm mb-0" id="usuariosPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- VALORES -->
+        <div class="page-content d-none" id="page-valores">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-dollar-sign me-2"></i>Valor do Estoque</h5>
+            <div class="stats-grid mb-3">
+                <div class="stat-card"><div class="icon green"><i class="fas fa-chart-pie"></i></div><div class="info"><div class="value" id="valorTotalEstoque">R$ 0</div><div class="label">Valor Total</div></div></div>
+                <div class="stat-card"><div class="icon blue"><i class="fas fa-check-circle"></i></div><div class="info"><div class="value" id="valorGood">R$ 0</div><div class="label">Good</div></div></div>
+                <div class="stat-card"><div class="icon orange"><i class="fas fa-sync"></i></div><div class="info"><div class="value" id="valorRefurbished">R$ 0</div><div class="label">Refurbished</div></div></div>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Tracking</th><th>Part No.</th><th>Descrição</th><th>Qtd</th><th>Valor Unit.</th><th>Valor Total</th></tr></thead>
+                            <tbody id="valoresTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OPERAÇÕES -->
+        <div class="page-content d-none" id="page-operacoes">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0" style="font-size:0.95rem;"><i class="fas fa-cogs me-2"></i>Operações</h5>
+                <button class="btn btn-primary btn-sm" id="btnNovaOperacao"><i class="fas fa-plus"></i> Nova</button>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Nome</th><th>Descrição</th><th>Responsável</th><th>Status</th><th>Ações</th></tr></thead>
+                            <tbody id="operacoesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RELATÓRIOS -->
+        <div class="page-content d-none" id="page-relatorios">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-chart-bar me-2"></i>Relatórios</h5>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-3 col-6"><label class="form-label" style="font-size:0.75rem;">Tipo</label><select class="form-select form-select-sm" id="relatorioTipo" style="font-size:0.75rem;"><option value="estoque">Estoque</option><option value="movimentacao">Movimentação</option><option value="solicitacoes">Solicitações</option><option value="usuarios">Usuários</option></select></div>
+                        <div class="col-md-3 col-6"><label class="form-label" style="font-size:0.75rem;">Data Início</label><input type="date" class="form-control form-control-sm" id="relatorioDataInicio" style="font-size:0.75rem;"></div>
+                        <div class="col-md-3 col-6"><label class="form-label" style="font-size:0.75rem;">Data Fim</label><input type="date" class="form-control form-control-sm" id="relatorioDataFim" style="font-size:0.75rem;"></div>
+                        <div class="col-md-3 col-6"><label class="form-label" style="font-size:0.75rem;">Operação</label><select class="form-select form-select-sm" id="relatorioOperacao" style="font-size:0.75rem;"><option value="todas">Todas</option></select></div>
+                    </div>
+                    <div class="d-flex gap-2 mt-3 flex-wrap">
+                        <button class="btn btn-primary btn-sm" id="btnGerarRelatorio"><i class="fas fa-search"></i> Gerar</button>
+                        <button class="btn btn-success btn-sm" id="btnExportarExcel"><i class="fas fa-file-excel"></i> Excel</button>
+                        <button class="btn btn-danger btn-sm" id="btnExportarPDF"><i class="fas fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;" id="relatorioTable">
+                            <thead><tr><th>#</th><th>Tracking</th><th>Part No.</th><th>Descrição</th><th>Quantidade</th><th>Valor</th><th>Data</th></tr></thead>
+                            <tbody id="relatorioTableBody"><tr><td colspan="7" class="text-center text-muted">Nenhum dado</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer"><span id="relatorioTotal" style="font-size:0.75rem;">0 registros</span></div>
+            </div>
+        </div>
+
+        <!-- BACKUP -->
+        <div class="page-content d-none" id="page-backup">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-database me-2"></i>Backup</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header"><span><i class="fas fa-download"></i> Backup Manual</span></div>
+                        <div class="card-body"><p class="text-muted" style="font-size:0.8rem;">Faça um backup completo de todos os dados.</p><button class="btn btn-primary" id="btnBackupCompleto"><i class="fas fa-database me-2"></i> Backup Completo</button></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header"><span><i class="fas fa-history"></i> Histórico</span></div>
+                        <div class="card-body" style="max-height:280px;overflow-y:auto;"><div id="backupLista"><p class="text-muted text-center">Nenhum backup disponível</p></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AUDITORIA -->
+        <div class="page-content d-none" id="page-auditoria">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-history me-2"></i>Auditoria</h5>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr></thead>
+                            <tbody id="auditoriaTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer"><span id="auditoriaTotal" style="font-size:0.75rem;">0 registros</span></div>
+            </div>
+        </div>
+
+        <!-- FORA ESTOQUE -->
+        <div class="page-content d-none" id="page-fora-estoque">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-archive me-2"></i>Fora do Estoque</h5>
+            <div class="card">
+                <div class="card-body" style="padding:0;">
+                    <div class="table-responsive">
+                        <table class="table table-hover" style="margin:0;">
+                            <thead><tr><th>Tracking</th><th>Part No.</th><th>Descrição</th><th>Qtd</th><th>Motivo</th><th>Data</th><th>Usuário</th><th>Ações</th></tr></thead>
+                            <tbody id="foraEstoqueTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CADASTRO USUÁRIO -->
+        <div class="page-content d-none" id="page-cadastro-usuario">
+            <h5 class="mb-3" style="font-size:0.95rem;"><i class="fas fa-user-plus me-2"></i>Cadastrar Usuário</h5>
+            <div class="card" style="max-width:550px;">
+                <div class="card-body">
+                    <form id="formCadastroUsuario" novalidate>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.8rem;">Nome Completo *</label><input type="text" class="form-control" id="cadastroNome" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.8rem;">Email *</label><input type="email" class="form-control" id="cadastroEmail" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.8rem;">Senha *</label><input type="password" class="form-control" id="cadastroSenha" required minlength="6" style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.8rem;">Operação *</label><select class="form-select" id="cadastroOperacao" required style="font-size:0.8rem;"><option value="">Selecione</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.8rem;">Tipo *</label><select class="form-select" id="cadastroTipo" required style="font-size:0.8rem;"><option value="">Selecione</option><option value="user">Usuário</option><option value="admin">Administrador</option></select></div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="submit" class="btn btn-primary btn-sm">Cadastrar</button>
+                            <button type="reset" class="btn btn-secondary btn-sm">Limpar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ===== TOAST ===== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ============================================================ -->
+    <!-- MODALS -->
+    <!-- ============================================================ -->
+
+    <!-- MODAL NOVA PEÇA -->
+    <div class="modal fade" id="modalNovoProduto" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-microchip me-2"></i>Nova Peça</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formNovoProduto" novalidate>
+                        <div class="row g-2">
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Tracking *</label><input type="text" class="form-control" id="produtoTracking" placeholder="TRK-001" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">CL</label><input type="text" class="form-control" id="produtoCL" placeholder="A1" style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Alt</label><input type="text" class="form-control" id="produtoAlt" placeholder="001" style="font-size:0.8rem;"></div>
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Part No. *</label><input type="text" class="form-control" id="produtoPN" placeholder="0F6F1F" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Categoria *</label><select class="form-select" id="produtoCategoria" required style="font-size:0.8rem;"><option value="">Selecione</option><option value="Mainboard">Mainboard</option><option value="Memória">Memória</option><option value="Processador">Processador</option><option value="LCD">LCD</option><option value="Teclado">Teclado</option><option value="Adapter">Adapter</option><option value="Bateria">Bateria</option><option value="Fonte">Fonte</option><option value="Outros">Outros</option></select></div>
+                            <div class="col-12"><label class="form-label" style="font-size:0.75rem;">Descrição *</label><input type="text" class="form-control" id="produtoDescricao" placeholder="Descrição da peça" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Qtd *</label><input type="number" class="form-control" id="produtoQuantidade" min="0" value="1" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Localização</label><input type="text" class="form-control" id="produtoLocalizacao" placeholder="A-01" style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Status</label><select class="form-select" id="produtoStatus" style="font-size:0.8rem;"><option value="good">Good</option><option value="bad">Bad</option><option value="refurbished">Refurbished</option></select></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Valor (R$)</label><input type="number" class="form-control" id="produtoValor" min="0" step="0.01" value="0" style="font-size:0.8rem;"></div>
+                            <div class="col-12"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="produtoObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnSalvarProduto">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL NOVA SOLICITAÇÃO -->
+    <div class="modal fade" id="modalNovaSolicitacao" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-clipboard-check me-2"></i>Nova Solicitação</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formNovaSolicitacao" novalidate>
+                        <div class="mb-2">
+                            <label class="form-label" style="font-size:0.75rem;">Buscar Peça *</label>
+                            <div class="autocomplete-container" id="autocompleteContainer">
+                                <input type="text" class="form-control" id="solicitacaoBusca" placeholder="Digite para buscar..." autocomplete="off" required style="font-size:0.8rem;">
+                                <div class="autocomplete-list" id="autocompleteList"></div>
+                            </div>
+                            <div id="solicitacaoInfo" class="mt-1 text-muted" style="font-size:0.75rem;">Digite para filtrar a lista de peças</div>
+                        </div>
+                        <input type="hidden" id="solicitacaoProdutoId">
+                        <div class="row g-2">
+                            <div class="col-md-4"><label class="form-label" style="font-size:0.75rem;">Peça Selecionada</label><input type="text" class="form-control" id="solicitacaoProdutoNome" readonly style="background:#f8f9fa;font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Part No.</label><input type="text" class="form-control" id="solicitacaoProdutoPN" readonly style="background:#f8f9fa;font-size:0.8rem;"></div>
+                            <div class="col-md-2"><label class="form-label" style="font-size:0.75rem;">Disponível</label><input type="text" class="form-control" id="solicitacaoDisponivel" readonly style="background:#f8f9fa;font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Quantidade *</label><input type="number" class="form-control" id="solicitacaoQuantidade" min="1" value="1" required style="font-size:0.8rem;"></div>
+                            <div class="col-12"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="solicitacaoObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                            <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" id="solicitacaoDefeito"><label class="form-check-label" style="font-size:0.8rem;" for="solicitacaoDefeito">Peça com defeito (BAD)</label></div></div>
+                            <div class="col-12" id="estoqueZeradoMsg" style="display:none;"><div class="estoque-zerado-alert"><i class="fas fa-exclamation-circle"></i><span><strong>Estoque zerado!</strong> Solicitação ficará em <strong>"Aguardando Estoque"</strong></span></div></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnEnviarSolicitacao">Solicitar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL NOVA ENTRADA -->
+    <div class="modal fade" id="modalNovaEntrada" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-arrow-down me-2"></i>Nova Entrada</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formNovaEntrada" novalidate>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Peça *</label><select class="form-select" id="entradaProduto" required style="font-size:0.8rem;"><option value="">Selecione</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Quantidade *</label><input type="number" class="form-control" id="entradaQuantidade" min="1" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Localização</label><input type="text" class="form-control" id="entradaLocalizacao" style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Status</label><select class="form-select" id="entradaStatus" style="font-size:0.8rem;"><option value="good">Good</option><option value="bad">Bad</option><option value="refurbished">Refurbished</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="entradaObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btnSalvarEntrada">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL NOVA OPERAÇÃO -->
+    <div class="modal fade" id="modalNovaOperacao" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-cogs me-2"></i>Nova Operação</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formNovaOperacao" novalidate>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Nome *</label><input type="text" class="form-control" id="operacaoNome" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Descrição</label><textarea class="form-control" id="operacaoDescricao" rows="2" style="font-size:0.8rem;"></textarea></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Responsável</label><input type="text" class="form-control" id="operacaoResponsavel" style="font-size:0.8rem;"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnSalvarOperacao">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PROCESSAR SOLICITAÇÃO -->
+    <div class="modal fade" id="modalProcessarSolicitacao" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-check-circle me-2"></i>Processar</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formProcessarSolicitacao">
+                        <input type="hidden" id="processarSolicitacaoId">
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Ação *</label><select class="form-select" id="processarAcao" required style="font-size:0.8rem;"><option value="">Selecione</option><option value="aprovada">Aprovar</option><option value="separando">Separando</option><option value="entregue">Entregue (Imprimir)</option><option value="rejeitada">Rejeitar</option><option value="aguardando">Aguardar Estoque</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Justificativa</label><textarea class="form-control" id="processarJustificativa" rows="2" style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnProcessarSolicitacao">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DEVOLUÇÃO BAD -->
+    <div class="modal fade" id="modalDevolucaoBad" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-undo me-2"></i>Devolução BAD</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formDevolucaoBad">
+                        <input type="hidden" id="devolucaoProdutoId"><input type="hidden" id="devolucaoQuantidade">
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Localização *</label><input type="text" class="form-control" id="devolucaoLocalizacao" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Defeito *</label><textarea class="form-control" id="devolucaoDefeito" rows="2" required style="font-size:0.8rem;"></textarea></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="devolucaoObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning btn-sm" id="btnConfirmarDevolucao">Devolver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ACEITE -->
+    <div class="modal fade" id="modalAceite" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-check me-2"></i>Aceite</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formAceite">
+                        <input type="hidden" id="aceiteProdutoId"><input type="hidden" id="aceiteQuantidade">
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Status *</label><select class="form-select" id="aceiteStatus" required style="font-size:0.8rem;"><option value="good">Good</option><option value="bad">Bad</option><option value="refurbished">Refurbished</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Localização *</label><input type="text" class="form-control" id="aceiteLocalizacao" required style="font-size:0.8rem;"></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="aceiteObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success btn-sm" id="btnConfirmarAceite">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR PEÇA -->
+    <div class="modal fade" id="modalEditarProduto" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-edit me-2"></i>Editar Peça</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formEditarProduto" novalidate>
+                        <input type="hidden" id="editarProdutoId">
+                        <div class="row g-2">
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Tracking *</label><input type="text" class="form-control" id="editarTracking" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">CL</label><input type="text" class="form-control" id="editarCL" style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Alt</label><input type="text" class="form-control" id="editarAlt" style="font-size:0.8rem;"></div>
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Part No. *</label><input type="text" class="form-control" id="editarPN" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-6"><label class="form-label" style="font-size:0.75rem;">Categoria *</label><select class="form-select" id="editarCategoria" required style="font-size:0.8rem;"><option value="Mainboard">Mainboard</option><option value="Memória">Memória</option><option value="Processador">Processador</option><option value="LCD">LCD</option><option value="Teclado">Teclado</option><option value="Adapter">Adapter</option><option value="Bateria">Bateria</option><option value="Fonte">Fonte</option><option value="Outros">Outros</option></select></div>
+                            <div class="col-12"><label class="form-label" style="font-size:0.75rem;">Descrição *</label><input type="text" class="form-control" id="editarDescricao" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Qtd *</label><input type="number" class="form-control" id="editarQuantidade" min="0" required style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Localização</label><input type="text" class="form-control" id="editarLocalizacao" style="font-size:0.8rem;"></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Status</label><select class="form-select" id="editarStatus" style="font-size:0.8rem;"><option value="good">Good</option><option value="bad">Bad</option><option value="refurbished">Refurbished</option><option value="obsoleto">Obsoleto</option></select></div>
+                            <div class="col-md-3"><label class="form-label" style="font-size:0.75rem;">Valor (R$)</label><input type="number" class="form-control" id="editarValor" min="0" step="0.01" style="font-size:0.8rem;"></div>
+                            <div class="col-12"><label class="form-label" style="font-size:0.75rem;">Observações</label><textarea class="form-control" id="editarObservacoes" rows="2" style="font-size:0.8rem;"></textarea></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnAtualizarProduto">Atualizar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL REMOVER PEÇA -->
+    <div class="modal fade" id="modalRemoverProduto" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-trash me-2"></i>Remover Peça</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formRemoverProduto">
+                        <input type="hidden" id="removerProdutoId">
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Motivo *</label><select class="form-select" id="removerMotivo" required style="font-size:0.8rem;"><option value="">Selecione</option><option value="obsoleto">Obsoleta</option><option value="defeito">Defeito Irreparável</option><option value="baixa">Baixa Rotação</option><option value="outro">Outro</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Justificativa *</label><textarea class="form-control" id="removerJustificativa" rows="2" required style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btnConfirmarRemocao">Remover</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL PROCESSAR USUÁRIO -->
+    <div class="modal fade" id="modalProcessarUsuario" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" style="font-size:0.95rem;"><i class="fas fa-user-check me-2"></i>Processar Usuário</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formProcessarUsuario">
+                        <input type="hidden" id="processarUsuarioId">
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Ação *</label><select class="form-select" id="processarUsuarioAcao" required style="font-size:0.8rem;"><option value="">Selecione</option><option value="aprovado">Aprovar</option><option value="rejeitado">Rejeitar</option></select></div>
+                        <div class="mb-2"><label class="form-label" style="font-size:0.75rem;">Justificativa</label><textarea class="form-control" id="processarUsuarioJustificativa" rows="2" style="font-size:0.8rem;"></textarea></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnProcessarUsuario">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SCRIPTS -->
+    <!-- ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+    // ============================================================
+    // SUPABASE CONFIGURAÇÃO - COLOQUE SEUS DADOS AQUI!
+    // ============================================================
+    
+    const SUPABASE_URL = 'https://SEU_PROJETO.supabase.co';
+    const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_AQUI';
+    
+    // ============================================================
+    // INICIALIZAR SUPABASE
+    // ============================================================
+    
+    const supabase = supabaseClient.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // ============================================================
+    // FUNÇÕES DE AUTENTICAÇÃO
+    // ============================================================
+    
+    async function fazerLogin(email, senha) {
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: senha
+            });
+            
+            if (error) throw error;
+            
+            const { data: userData, error: userError } = await supabase
+                .from('usuarios')
+                .select('*')
+                .eq('email', email)
+                .single();
+                
+            if (userError) throw userError;
+            
+            return { success: true, user: data.user, userData };
+        } catch (error) {
+            let mensagem = 'Erro ao fazer login.';
+            if (error.message === 'Invalid login credentials') {
+                mensagem = 'Email ou senha inválidos.';
+            } else if (error.message === 'Email not confirmed') {
+                mensagem = 'Email não confirmado.';
+            }
+            return { success: false, error: mensagem };
+        }
+    }
+    
+    async function fazerLogout() {
+        try {
+            await supabase.auth.signOut();
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+    
+    // ============================================================
+    // FUNÇÕES DO BANCO DE DADOS
+    // ============================================================
+    
+    async function listarTabela(tabela, orderBy = 'id', ascending = false) {
+        try {
+            const { data, error } = await supabase
+                .from(tabela)
+                .select('*')
+                .order(orderBy, { ascending: ascending });
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Erro ao listar:', error);
+            return { success: false, error: error.message, data: [] };
+        }
+    }
+    
+    async function buscarPorId(tabela, id) {
+        try {
+            const { data, error } = await supabase
+                .from(tabela)
+                .select('*')
+                .eq('id', id)
+                .single();
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async function adicionarRegistro(tabela, dados) {
+        try {
+            const { data, error } = await supabase
+                .from(tabela)
+                .insert([dados])
+                .select();
+                
+            if (error) throw error;
+            return { success: true, data: data[0] };
+        } catch (error) {
+            console.error('Erro ao adicionar:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async function atualizarRegistro(tabela, id, dados) {
+        try {
+            const { data, error } = await supabase
+                .from(tabela)
+                .update(dados)
+                .eq('id', id)
+                .select();
+                
+            if (error) throw error;
+            return { success: true, data: data[0] };
+        } catch (error) {
+            console.error('Erro ao atualizar:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async function deletarRegistro(tabela, id) {
+        try {
+            const { error } = await supabase
+                .from(tabela)
+                .delete()
+                .eq('id', id);
+                
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Erro ao deletar:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    async function buscarComFiltro(tabela, filtros, orderBy = 'id', ascending = false) {
+        try {
+            let query = supabase.from(tabela).select('*');
+            
+            Object.keys(filtros).forEach(key => {
+                query = query.eq(key, filtros[key]);
+            });
+            
+            const { data, error } = await query.order(orderBy, { ascending });
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Erro na busca:', error);
+            return { success: false, error: error.message, data: [] };
+        }
+    }
+    
+    async function buscarProdutos(termo) {
+        try {
+            const { data, error } = await supabase
+                .from('produtos')
+                .select('*')
+                .or(`descricao.ilike.%${termo}%,pn.ilike.%${termo}%,tracking.ilike.%${termo}%`);
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Erro na busca:', error);
+            return { success: false, error: error.message, data: [] };
+        }
+    }
+    
+    async function getProdutosBaixoEstoque(limite = 5) {
+        try {
+            const { data, error } = await supabase
+                .from('produtos')
+                .select('*')
+                .lt('quantidade', limite)
+                .not('status', 'eq', 'obsoleto')
+                .not('status', 'eq', 'bad');
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Erro:', error);
+            return { success: false, error: error.message, data: [] };
+        }
+    }
+    
+    async function getSolicitacoesPendentes() {
+        try {
+            const { data, error } = await supabase
+                .from('solicitacoes')
+                .select('*')
+                .eq('status', 'pendente')
+                .order('data', { ascending: true });
+                
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Erro:', error);
+            return { success: false, error: error.message, data: [] };
+        }
+    }
+    
+    async function registrarAuditoria(usuarioId, usuarioNome, acao, detalhes) {
+        try {
+            const { error } = await supabase
+                .from('auditoria')
+                .insert([{
+                    usuario_id: usuarioId,
+                    usuario_nome: usuarioNome,
+                    acao: acao,
+                    detalhes: detalhes,
+                    data: new Date().toISOString()
+                }]);
+                
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('Erro ao registrar auditoria:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    // ============================================================
+    // WRAPPER PARA COMPATIBILIDADE
+    // ============================================================
+    
+    const db = {
+        listar: async (tabela) => {
+            const result = await listarTabela(tabela);
+            return result.success ? result.data : [];
+        },
+        adicionar: async (tabela, dados) => {
+            const result = await adicionarRegistro(tabela, dados);
+            return result.success ? result.data : null;
+        },
+        atualizar: async (tabela, id, dados) => {
+            const result = await atualizarRegistro(tabela, id, dados);
+            return result.success ? result.data : null;
+        },
+        deletar: async (tabela, id) => {
+            const result = await deletarRegistro(tabela, id);
+            return result.success;
+        },
+        encontrar: async (tabela, id) => {
+            const result = await buscarPorId(tabela, id);
+            return result.success ? result.data : null;
+        },
+        buscar: async (tabela, filtro) => {
+            const result = await buscarComFiltro(tabela, filtro);
+            return result.success ? result.data : [];
+        },
+        buscarProdutos: async (termo) => {
+            const result = await buscarProdutos(termo);
+            return result.success ? result.data : [];
+        },
+        getProdutosBaixoEstoque: async (limite) => {
+            const result = await getProdutosBaixoEstoque(limite);
+            return result.success ? result.data : [];
+        },
+        getSolicitacoesPendentes: async () => {
+            const result = await getSolicitacoesPendentes();
+            return result.success ? result.data : [];
+        }
+    };
+    
+    // ============================================================
+    // ESTADO DA APLICAÇÃO
+    // ============================================================
+    
+    const app = {
+        usuarioLogado: null,
+        paginaAtual: 'dashboard',
+        pagina: { produtos: 1, solicitacoes: 1, minhasSolicitacoes: 1, entradas: 1, saidas: 1, usuarios: 1, operacoes: 1, foraEstoque: 1 },
+        itensPorPagina: 10,
+        dadosRelatorio: null,
+        produtosCache: [],
+        solicitacoesCache: [],
+        usuariosCache: [],
+        operacoesCache: [],
+        entradasCache: [],
+        saidasCache: []
+    };
+    
+    // ============================================================
+    // UTILITÁRIOS
+    // ============================================================
+    
+    function formatarData(d) { if (!d) return '-'; return new Date(d).toLocaleDateString('pt-BR'); }
+    function formatarDataHora(d) { if (!d) return '-'; return new Date(d).toLocaleString('pt-BR'); }
+    
+    function formatarStatus(s) {
+        const map = { 'good':'Good','bad':'Bad','refurbished':'Refurbished','obsoleto':'Obsoleto',
+            'pendente':'Pendente','aprovada':'Aprovada','rejeitada':'Rejeitada','entregue':'Entregue',
+            'aguardando':'Aguardando Estoque','separando':'Separando','cancelada':'Cancelada',
+            'ativo':'Ativo','inativo':'Inativo' };
+        return map[s] || s;
+    }
+    
+    function getBadgeStatus(s) {
+        const map = { 'good':'badge-good','bad':'badge-bad','refurbished':'badge-refurbished',
+            'obsoleto':'badge-obsoleto','pendente':'badge-pendente','aprovada':'badge-aprovada',
+            'rejeitada':'badge-rejeitada','entregue':'badge-entregue','aguardando':'badge-aguardando',
+            'separando':'badge-separando','cancelada':'badge-cancelada','ativo':'badge-good',
+            'inativo':'badge-obsoleto' };
+        return map[s] || 'badge-secondary';
+    }
+    
+    function getProduto(id) {
+        return app.produtosCache.find(p => p.id === id) || null;
+    }
+    
+    function getProdutoNome(id) {
+        const p = getProduto(id);
+        return p ? p.descricao : 'Peça removida';
+    }
+    
+    function getUsuario(id) {
+        return app.usuariosCache.find(u => u.id === id) || null;
+    }
+    
+    function getUsuarioNome(id) {
+        const u = getUsuario(id);
+        return u ? u.nome : 'Usuário removido';
+    }
+    
+    function mostrarToast(msg, tipo = 'success') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast-custom ${tipo}`;
+        const icons = { success:'fas fa-check-circle', error:'fas fa-times-circle', 
+            warning:'fas fa-exclamation-triangle', info:'fas fa-info-circle' };
+        toast.innerHTML = `<span class="icon"><i class="${icons[tipo]||icons.info}"></i></span>
+            <span class="message">${msg}</span>
+            <button class="close-btn" onclick="this.parentElement.remove()">&times;</button>`;
+        container.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) toast.remove(); }, 5000);
+    }
+    
+    async function registrarAuditoriaSistema(acao, detalhes) {
+        const u = app.usuarioLogado;
+        await registrarAuditoria(u ? u.id : null, u ? u.nome : 'Sistema', acao, detalhes);
+    }
+    
+    function getProdutosBaixoEstoqueLista() {
+        return app.produtosCache.filter(p => p.quantidade < 5 && p.status !== 'obsoleto' && p.status !== 'bad');
+    }
+    
+    function atualizarNotificacoes() {
+        const p = app.solicitacoesCache.filter(s => s.status === 'pendente').length;
+        const b = document.getElementById('solicitacoesBadge');
+        if (p > 0) { b.textContent = p; b.classList.remove('d-none'); } else { b.classList.add('d-none'); }
+        
+        const up = app.usuariosCache.filter(u => u.status === 'pendente').length;
+        const ub = document.getElementById('usuariosBadge');
+        if (up > 0) { ub.textContent = up; ub.classList.remove('d-none'); } else { ub.classList.add('d-none'); }
+        
+        const bp = getProdutosBaixoEstoqueLista().length;
+        const bb = document.getElementById('estoqueBaixoBadge');
+        if (bp > 0) { bb.textContent = bp; bb.classList.remove('d-none'); } else { bb.classList.add('d-none'); }
+    }
+    
+    // ============================================================
+    // NAVEGAÇÃO
+    // ============================================================
+    
+    function navegarPara(pagina) {
+        document.querySelectorAll('.page-content').forEach(el => el.classList.add('d-none'));
+        const target = document.getElementById(`page-${pagina}`);
+        if (target) target.classList.remove('d-none');
+        
+        document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+            link.classList.toggle('active', link.dataset.page === pagina);
+        });
+        
+        const titulos = { dashboard:'Dashboard', estoque:'Estoque', 'minhas-solicitacoes':'Minhas Solicitações',
+            entrada:'Entrada', saida:'Saída', solicitacoes:'Solicitações', produtos:'Peças',
+            usuarios:'Usuários', valores:'Valores', operacoes:'Operações', relatorios:'Relatórios',
+            backup:'Backup', auditoria:'Auditoria', 'fora-estoque':'Fora do Estoque',
+            'cadastro-usuario':'Cadastrar Usuário' };
+        const icons = { dashboard:'tachometer-alt', estoque:'box', 'minhas-solicitacoes':'clipboard-check',
+            entrada:'arrow-down', saida:'arrow-up', solicitacoes:'clipboard-list', produtos:'microchip',
+            usuarios:'users', valores:'dollar-sign', operacoes:'cogs', relatorios:'chart-bar',
+            backup:'database', auditoria:'history', 'fora-estoque':'archive', 'cadastro-usuario':'user-plus' };
+        
+        document.getElementById('pageTitle').innerHTML = `<i class="fas fa-${icons[pagina]||'circle'}"></i> ${titulos[pagina]||pagina}`;
+        app.paginaAtual = pagina;
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarOverlay').classList.remove('active');
+    }
+    
+    // ============================================================
+    // AUTOCOMPLETE
+    // ============================================================
+    
+    function setupAutocomplete() {
+        const input = document.getElementById('solicitacaoBusca');
+        const list = document.getElementById('autocompleteList');
+        const container = document.getElementById('autocompleteContainer');
+        
+        function carregarLista() {
+            const produtos = app.produtosCache;
+            if (!produtos || produtos.length === 0) {
+                list.innerHTML = `<div class="autocomplete-item" style="color:#999;cursor:default;">Carregando peças...</div>`;
+                list.classList.add('show');
+                return;
+            }
+            list.innerHTML = produtos.map(p => `
+                <div class="autocomplete-item" data-id="${p.id}" onclick="selecionarProdutoAutocomplete(${p.id})">
+                    <span>
+                        <strong>${p.descricao}</strong>
+                        <small style="color:#999;display:block;font-size:0.65rem;">${p.tracking||'Sem tracking'} | ${p.pn} | ${p.categoria||'Sem categoria'}</small>
+                    </span>
+                    <span class="qtd ${p.quantidade===0?'zerado':p.quantidade<5?'baixo':''}">${p.quantidade===0?'⚠️ ZERADO':`${p.quantidade} disp.`}</span>
+                </div>
+            `).join('');
+            list.classList.add('show');
+        }
+        
+        carregarLista();
+        
+        input.addEventListener('input', function() {
+            const termo = this.value.toLowerCase().trim();
+            if (termo === '') { carregarLista(); document.getElementById('solicitacaoInfo').innerHTML = 'Todas as peças disponíveis'; return; }
+            
+            const produtos = app.produtosCache.filter(p => 
+                p.descricao.toLowerCase().includes(termo) || 
+                p.pn.toLowerCase().includes(termo) || 
+                (p.tracking && p.tracking.toLowerCase().includes(termo))
+            );
+            
+            if (produtos.length === 0) {
+                list.innerHTML = `<div class="autocomplete-item" style="color:#999;cursor:default;">Nenhuma peça encontrada</div>`;
+                list.classList.add('show');
+                document.getElementById('solicitacaoInfo').innerHTML = `Nenhum resultado para "${termo}"`;
+                return;
+            }
+            
+            list.innerHTML = produtos.map(p => `
+                <div class="autocomplete-item" data-id="${p.id}" onclick="selecionarProdutoAutocomplete(${p.id})">
+                    <span>
+                        <strong>${p.descricao}</strong>
+                        <small style="color:#999;display:block;font-size:0.65rem;">${p.tracking||'Sem tracking'} | ${p.pn} | ${p.categoria||'Sem categoria'}</small>
+                    </span>
+                    <span class="qtd ${p.quantidade===0?'zerado':p.quantidade<5?'baixo':''}">${p.quantidade===0?'⚠️ ZERADO':`${p.quantidade} disp.`}</span>
+                </div>
+            `).join('');
+            list.classList.add('show');
+            document.getElementById('solicitacaoInfo').innerHTML = `Encontrados ${produtos.length} resultados`;
+        });
+        
+        document.addEventListener('click', function(e) { if (!container.contains(e.target)) list.classList.remove('show'); });
+        
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const first = list.querySelector('.autocomplete-item:not([style*="cursor:default"])');
+                if (first && first.dataset.id) selecionarProdutoAutocomplete(parseInt(first.dataset.id));
+            }
+            if (e.key === 'Escape') { list.classList.remove('show'); input.blur(); }
+        });
+        
+        input.addEventListener('focus', function() { 
+            if (this.value.trim() === '') carregarLista(); 
+            else this.dispatchEvent(new Event('input')); 
+        });
+    }
+    
+    function selecionarProdutoAutocomplete(id) {
+        const p = app.produtosCache.find(prod => prod.id === id);
+        if (!p) return;
+        
+        document.getElementById('solicitacaoProdutoId').value = id;
+        document.getElementById('solicitacaoProdutoNome').value = p.descricao;
+        document.getElementById('solicitacaoProdutoPN').value = p.pn;
+        document.getElementById('solicitacaoDisponivel').value = p.quantidade;
+        document.getElementById('autocompleteList').classList.remove('show');
+        document.getElementById('solicitacaoBusca').value = p.descricao;
+        
+        const msg = document.getElementById('estoqueZeradoMsg');
+        if (p.quantidade === 0) { msg.style.display = 'block'; } 
+        else { msg.style.display = 'none'; document.getElementById('solicitacaoQuantidade').max = p.quantidade; document.getElementById('solicitacaoQuantidade').value = Math.min(1, p.quantidade); }
+        
+        document.getElementById('solicitacaoInfo').innerHTML = `<span class="text-success"><i class="fas fa-check-circle"></i> Peça selecionada: <strong>${p.descricao}</strong></span>${p.quantidade===0?' <span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Estoque zerado!</span>':''}`;
+    }
+    
+    // ============================================================
+    // RENDERIZAÇÃO
+    // ============================================================
+    
+    function gerarPaginacao(total, pagina, porPagina, callback) {
+        const totalPaginas = Math.ceil(total / porPagina);
+        if (totalPaginas <= 1) return '';
+        let html = `<li class="page-item ${pagina===1?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();${pagina>1?`(${callback.toString()})(${pagina-1})`:''}">Anterior</a></li>`;
+        const inicio = Math.max(1, pagina - 2);
+        const fim = Math.min(totalPaginas, pagina + 2);
+        if (inicio > 1) { html += `<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault();(${callback.toString()})(1)">1</a></li>`; if (inicio > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; }
+        for (let i = inicio; i <= fim; i++) html += `<li class="page-item ${i===pagina?'active':''}"><a class="page-link" href="#" onclick="event.preventDefault();(${callback.toString()})(${i})">${i}</a></li>`;
+        if (fim < totalPaginas) { if (fim < totalPaginas - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; html += `<li class="page-item"><a class="page-link" href="#" onclick="event.preventDefault();(${callback.toString()})(${totalPaginas})">${totalPaginas}</a></li>`; }
+        html += `<li class="page-item ${pagina===totalPaginas?'disabled':''}"><a class="page-link" href="#" onclick="event.preventDefault();${pagina<totalPaginas?`(${callback.toString()})(${pagina+1})`:''}">Próximo</a></li>`;
+        return html;
+    }
+    
+    function renderizarDashboard() {
+        const produtos = app.produtosCache;
+        const solicitacoes = app.solicitacoesCache;
+        const usuarios = app.usuariosCache;
+        const entradas = app.entradasCache || [];
+        const saidas = app.saidasCache || [];
+        
+        document.getElementById('statTotalProdutos').textContent = produtos.length;
+        document.getElementById('statSolicitacoesPendentes').textContent = solicitacoes.filter(s => s.status === 'pendente').length;
+        
+        const valorTotal = produtos.reduce((acc, p) => acc + (p.quantidade * p.valor), 0);
+        document.getElementById('statValorEstoque').textContent = `R$ ${valorTotal.toFixed(2)}`;
+        document.getElementById('statEstoqueBaixo').textContent = getProdutosBaixoEstoqueLista().length;
+        document.getElementById('statUsuarios').textContent = usuarios.filter(u => u.status === 'ativo').length;
+        
+        const hoje = new Date();
+        const mes = hoje.getMonth(), ano = hoje.getFullYear();
+        const movimentacoesMes = [...entradas, ...saidas].filter(m => {
+            const d = new Date(m.data);
+            return d.getMonth() === mes && d.getFullYear() === ano;
+        });
+        document.getElementById('statMovimentacoes').textContent = movimentacoesMes.length;
+        
+        // Movimentação recente
+        const movs = [];
+        entradas.forEach(e => {
+            const p = getProduto(e.produto_id);
+            movs.push({ data: e.data, produto: p ? p.descricao : 'Peça removida', tipo: 'Entrada', quantidade: e.quantidade, usuarioId: e.usuario_id });
+        });
+        saidas.forEach(s => {
+            const p = getProduto(s.produto_id);
+            movs.push({ data: s.data, produto: p ? p.descricao : 'Peça removida', tipo: 'Saída', quantidade: s.quantidade, usuarioId: s.usuario_id });
+        });
+        movs.sort((a, b) => new Date(b.data) - new Date(a.data));
+        
+        const tbody = document.getElementById('movimentacaoRecente');
+        tbody.innerHTML = '';
+        if (movs.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Nenhuma movimentação</td></tr>`; } 
+        else {
+            movs.slice(0, 10).forEach(m => {
+                const u = getUsuario(m.usuarioId);
+                tbody.innerHTML += `<tr><td>${formatarData(m.data)}</td><td>${m.produto}</td><td><span class="badge ${m.tipo==='Entrada'?'badge-good':'badge-pendente'}">${m.tipo}</span></td><td>${m.quantidade}</td><td>${u?u.nome:'-'}</td></tr>`;
+            });
+        }
+        document.getElementById('totalMovimentacoes').textContent = `${movs.length} movimentações`;
+        
+        // Gráfico
+        const ctx = document.getElementById('dashboardChart').getContext('2d');
+        const categorias = {};
+        produtos.forEach(p => { const cat = p.categoria || 'Outros'; categorias[cat] = (categorias[cat] || 0) + p.quantidade; });
+        if (window.dashboardChartInstance) window.dashboardChartInstance.destroy();
+        window.dashboardChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: { 
+                labels: Object.keys(categorias), 
+                datasets: [{ 
+                    data: Object.values(categorias), 
+                    backgroundColor: ['#1a237e','#2e7d32','#f57f17','#c62828','#00695c','#4a148c','#757575','#0d6b7a','#e65100'] 
+                }] 
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 9 } } } } }
+        });
+        
+        atualizarAlertaEstoqueBaixo();
+    }
+    
+    function atualizarAlertaEstoqueBaixo() {
+        const baixo = getProdutosBaixoEstoqueLista();
+        const alerta = document.getElementById('estoqueBaixoAlert');
+        const alertaPage = document.getElementById('estoqueBaixoAlertPage');
+        if (baixo.length > 0) {
+            const nomes = baixo.map(p => `${p.descricao} (${p.quantidade})`).join(', ');
+            document.getElementById('estoqueBaixoLista').textContent = nomes;
+            document.getElementById('estoqueBaixoCount').textContent = baixo.length;
+            document.getElementById('estoqueBaixoListaPage').textContent = nomes;
+            document.getElementById('estoqueBaixoCountPage').textContent = baixo.length;
+            alerta.classList.remove('d-none');
+            alertaPage.classList.remove('d-none');
+        } else {
+            alerta.classList.add('d-none');
+            alertaPage.classList.add('d-none');
+        }
+    }
+    
+    function renderizarEstoque() {
+        const termo = document.getElementById('estoqueSearch').value.toLowerCase();
+        const categoria = document.getElementById('estoqueFiltroCategoria').value;
+        let produtos = app.produtosCache;
+        if (termo) produtos = produtos.filter(p => p.descricao.toLowerCase().includes(termo) || p.pn.toLowerCase().includes(termo) || (p.tracking && p.tracking.toLowerCase().includes(termo)));
+        if (categoria !== 'todos') produtos = produtos.filter(p => p.categoria === categoria);
+        
+        const pagina = app.pagina.produtos;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = produtos.slice(inicio, fim);
+        
+        const tbody = document.getElementById('estoqueTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Nenhuma peça encontrada</td></tr>`; } 
+        else {
+            paginados.forEach(p => {
+                const estoqueBaixo = p.quantidade < 5 && p.status !== 'obsoleto' && p.status !== 'bad';
+                tbody.innerHTML += `<tr${estoqueBaixo?' style="background:#fff5f5;"':''}>
+                    <td><code>${p.tracking||'-'}</code></td>
+                    <td>${p.cl||'-'}</td><td>${p.alt||'-'}</td>
+                    <td><code>${p.pn}</code></td>
+                    <td>${p.descricao}</td>
+                    <td><span class="badge bg-secondary">${p.categoria||'-'}</span></td>
+                    <td><span class="badge ${p.quantidade<3?'badge-bad':p.quantidade<10?'badge-pendente':'badge-good'}">${p.quantidade}</span>${p.quantidade<5&&p.status!=='obsoleto'&&p.status!=='bad'?' <i class="fas fa-exclamation-triangle text-danger"></i>':''}${p.quantidade===0?' <i class="fas fa-times-circle text-danger"></i>':''}</td>
+                    <td>${p.localizacao||'-'}</td>
+                    <td><span class="badge ${getBadgeStatus(p.status)}">${formatarStatus(p.status)}</span></td>
+                    <td class="td-actions">
+                        <button class="btn btn-outline-primary btn-icon" onclick="editarProduto(${p.id})"><i class="fas fa-edit"></i></button>
+                        ${p.status!=='obsoleto'?`<button class="btn btn-outline-danger btn-icon" onclick="removerProduto(${p.id})"><i class="fas fa-trash"></i></button>`:''}
+                    </td>
+                </tr>`;
+            });
+        }
+        
+        const total = produtos.length;
+        document.getElementById('estoquePaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('estoquePagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.produtos = p; renderizarEstoque(); });
+        atualizarAlertaEstoqueBaixo();
+    }
+    
+    function renderizarMinhasSolicitacoes() {
+        const u = app.usuarioLogado;
+        let lista = app.solicitacoesCache.filter(s => s.usuario_id === u.id).sort((a,b) => new Date(b.data) - new Date(a.data));
+        const pagina = app.pagina.minhasSolicitacoes;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = lista.slice(inicio, fim);
+        
+        const tbody = document.getElementById('minhasSolicitacoesBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma solicitação</td></tr>`; } 
+        else {
+            paginados.forEach(s => {
+                const p = getProduto(s.produto_id);
+                tbody.innerHTML += `<tr>
+                    <td>#${s.id}</td>
+                    <td>${p?p.descricao:'Peça removida'}</td>
+                    <td>${s.quantidade}</td>
+                    <td>${formatarData(s.data)}</td>
+                    <td><span class="badge ${getBadgeStatus(s.status)}">${formatarStatus(s.status)}</span></td>
+                    <td>${s.observacoes||'-'}</td>
+                    <td>${s.status==='pendente'?`<button class="btn btn-outline-danger btn-sm" onclick="cancelarSolicitacao(${s.id})"><i class="fas fa-times"></i></button>`:s.status==='entregue'?'<span class="text-success"><i class="fas fa-check"></i></span>':'-'}</td>
+                </tr>`;
+            });
+        }
+        const total = lista.length;
+        document.getElementById('minhasSolicitacoesInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('minhasSolicitacoesPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.minhasSolicitacoes = p; renderizarMinhasSolicitacoes(); });
+    }
+    
+    function renderizarSolicitacoes() {
+        const statusFiltro = document.getElementById('solicitacoesFiltroStatus').value;
+        let lista = app.solicitacoesCache;
+        if (statusFiltro !== 'todos') lista = lista.filter(s => s.status === statusFiltro);
+        lista.sort((a, b) => new Date(b.data) - new Date(a.data));
+        
+        const pagina = app.pagina.solicitacoes;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = lista.slice(inicio, fim);
+        
+        const tbody = document.getElementById('solicitacoesTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma solicitação</td></tr>`; } 
+        else {
+            paginados.forEach(s => {
+                const p = getProduto(s.produto_id);
+                const u = getUsuario(s.usuario_id);
+                const isPendente = s.status === 'pendente';
+                const isAguardando = s.status === 'aguardando';
+                tbody.innerHTML += `<tr${isPendente?' style="background:#fffde7;"':''}${isAguardando?' style="background:#fff3e0;"':''}>
+                    <td>#${s.id}</td>
+                    <td>${p?p.descricao:'Peça removida'}</td>
+                    <td>${s.quantidade}</td>
+                    <td>${u?u.nome:'-'}</td>
+                    <td>${formatarData(s.data)}</td>
+                    <td><span class="badge ${getBadgeStatus(s.status)}">${formatarStatus(s.status)}</span></td>
+                    <td class="td-actions">
+                        ${s.status === 'pendente' ? `<button class="btn btn-success btn-sm" onclick="abrirProcessarSolicitacao(${s.id})"><i class="fas fa-check"></i></button>` : ''}
+                        ${s.status === 'separando' ? `<button class="btn btn-primary btn-sm" onclick="abrirProcessarSolicitacao(${s.id})"><i class="fas fa-truck"></i></button>` : ''}
+                        ${s.status === 'aguardando' ? `<button class="btn btn-warning btn-sm" onclick="abrirProcessarSolicitacao(${s.id})"><i class="fas fa-sync"></i></button>` : ''}
+                        ${s.status === 'entregue' ? `<button class="btn btn-outline-danger btn-sm" onclick="devolverBad(${s.id})"><i class="fas fa-undo"></i></button>` : ''}
+                    </td>
+                </tr>`;
+            });
+        }
+        const total = lista.length;
+        document.getElementById('solicitacoesPaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('solicitacoesPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.solicitacoes = p; renderizarSolicitacoes(); });
+    }
+    
+    function renderizarProdutos() {
+        const produtos = app.produtosCache;
+        const pagina = app.pagina.produtos;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = produtos.slice(inicio, fim);
+        
+        const tbody = document.getElementById('produtosTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Nenhuma peça</td></tr>`; } 
+        else {
+            paginados.forEach(p => {
+                tbody.innerHTML += `<tr>
+                    <td><code>${p.tracking||'-'}</code></td>
+                    <td>${p.cl||'-'}</td><td>${p.alt||'-'}</td>
+                    <td><code>${p.pn}</code></td>
+                    <td>${p.descricao}</td>
+                    <td><span class="badge bg-secondary">${p.categoria||'-'}</span></td>
+                    <td>${p.quantidade}</td>
+                    <td>${p.localizacao||'-'}</td>
+                    <td><span class="badge ${getBadgeStatus(p.status)}">${formatarStatus(p.status)}</span></td>
+                    <td class="td-actions">
+                        <button class="btn btn-outline-primary btn-icon" onclick="editarProduto(${p.id})"><i class="fas fa-edit"></i></button>
+                        ${p.status!=='obsoleto'?`<button class="btn btn-outline-danger btn-icon" onclick="removerProduto(${p.id})"><i class="fas fa-trash"></i></button>`:''}
+                    </td>
+                </tr>`;
+            });
+        }
+        const total = produtos.length;
+        document.getElementById('produtosPaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('produtosPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.produtos = p; renderizarProdutos(); });
+    }
+    
+    function renderizarUsuarios() {
+        const usuarios = app.usuariosCache;
+        const pagina = app.pagina.usuarios;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = usuarios.slice(inicio, fim);
+        
+        const tbody = document.getElementById('usuariosTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhum usuário</td></tr>`; } 
+        else {
+            paginados.forEach(u => {
+                tbody.innerHTML += `<tr>
+                    <td>${u.nome}</td>
+                    <td>${u.email}</td>
+                    <td>${u.operacao}</td>
+                    <td><span class="badge ${u.tipo==='admin'?'badge-primary':'badge-secondary'}">${u.tipo==='admin'?'Admin':'Usuário'}</span></td>
+                    <td><span class="badge ${getBadgeStatus(u.status)}">${formatarStatus(u.status)}</span></td>
+                    <td class="td-actions">
+                        ${u.status==='pendente'?`<button class="btn btn-success btn-sm" onclick="abrirProcessarUsuario(${u.id})"><i class="fas fa-check"></i></button>`:''}
+                        ${u.id!==1?`<button class="btn btn-outline-danger btn-sm" onclick="deletarUsuario(${u.id})"><i class="fas fa-trash"></i></button>`:''}
+                    </td>
+                </tr>`;
+            });
+        }
+        const total = usuarios.length;
+        document.getElementById('usuariosPaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('usuariosPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.usuarios = p; renderizarUsuarios(); });
+    }
+    
+    function renderizarEntradas() {
+        const entradas = app.entradasCache || [];
+        const pagina = app.pagina.entradas;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = entradas.slice(inicio, fim);
+        
+        const tbody = document.getElementById('entradaTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma entrada</td></tr>`; } 
+        else {
+            paginados.forEach(e => {
+                const p = getProduto(e.produto_id);
+                const u = getUsuario(e.usuario_id);
+                tbody.innerHTML += `<tr>
+                    <td>#${e.id}</td>
+                    <td>${p?p.descricao:'Peça removida'}</td>
+                    <td>${e.quantidade}</td>
+                    <td>${e.localizacao||'-'}</td>
+                    <td><span class="badge ${getBadgeStatus(e.status)}">${formatarStatus(e.status)}</span></td>
+                    <td>${formatarData(e.data)}</td>
+                    <td>${u?u.nome:'-'}</td>
+                </tr>`;
+            });
+        }
+        const total = entradas.length;
+        document.getElementById('entradaPaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('entradaPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.entradas = p; renderizarEntradas(); });
+    }
+    
+    function renderizarSaidas() {
+        const saidas = app.saidasCache || [];
+        const pagina = app.pagina.saidas;
+        const porPagina = app.itensPorPagina;
+        const inicio = (pagina - 1) * porPagina;
+        const fim = inicio + porPagina;
+        const paginados = saidas.slice(inicio, fim);
+        
+        const tbody = document.getElementById('saidaTableBody');
+        tbody.innerHTML = '';
+        if (paginados.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Nenhuma saída</td></tr>`; } 
+        else {
+            paginados.forEach(s => {
+                const p = getProduto(s.produto_id);
+                const u = getUsuario(s.usuario_id);
+                tbody.innerHTML += `<tr>
+                    <td>#${s.id}</td>
+                    <td>${p?p.descricao:'Peça removida'}</td>
+                    <td>${s.quantidade}</td>
+                    <td>${formatarData(s.data)}</td>
+                    <td>${u?u.nome:'-'}</td>
+                    <td><span class="badge ${getBadgeStatus(s.status)}">${formatarStatus(s.status)}</span></td>
+                    <td>${s.status==='separando'?`<button class="btn btn-success btn-sm" onclick="entregarSaida(${s.id})"><i class="fas fa-check"></i></button>`:s.status==='entregue'?'<span class="text-success"><i class="fas fa-check-circle"></i></span>':'-'}</td>
+                </tr>`;
+            });
+        }
+        const total = saidas.length;
+        document.getElementById('saidaPaginationInfo').textContent = `Mostrando ${total>0?inicio+1:0} a ${Math.min(fim,total)} de ${total}`;
+        document.getElementById('saidaPagination').innerHTML = gerarPaginacao(total, pagina, porPagina, p => { app.pagina.saidas = p; renderizarSaidas(); });
+    }
+    
+    function renderizarValores() {
+        const produtos = app.produtosCache;
+        let total = 0, totalGood = 0, totalRefurbished = 0;
+        
+        const detalhes = produtos.map(p => {
+            const valorTotal = p.quantidade * p.valor;
+            total += valorTotal;
+            if (p.status === 'good') totalGood += valorTotal;
+            if (p.status === 'refurbished') totalRefurbished += valorTotal;
+            return { ...p, valorTotal };
+        });
+        
+        document.getElementById('valorTotalEstoque').textContent = `R$ ${total.toFixed(2)}`;
+        document.getElementById('valorGood').textContent = `R$ ${totalGood.toFixed(2)}`;
+        document.getElementById('valorRefurbished').textContent = `R$ ${totalRefurbished.toFixed(2)}`;
+        
+        const tbody = document.getElementById('valoresTableBody');
+        tbody.innerHTML = '';
+        if (detalhes.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhuma peça</td></tr>`; } 
+        else {
+            detalhes.forEach(p => {
+                tbody.innerHTML += `<tr>
+                    <td><code>${p.tracking||'-'}</code></td>
+                    <td><code>${p.pn}</code></td>
+                    <td>${p.descricao}</td>
+                    <td>${p.quantidade}</td>
+                    <td>R$ ${p.valor.toFixed(2)}</td>
+                    <td><strong>R$ ${p.valorTotal.toFixed(2)}</strong></td>
+                </tr>`;
+            });
+        }
+    }
+    
+    function renderizarOperacoes() {
+        const operacoes = app.operacoesCache || [];
+        const tbody = document.getElementById('operacoesTableBody');
+        tbody.innerHTML = '';
+        if (operacoes.length === 0) { tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Nenhuma operação</td></tr>`; } 
+        else {
+            operacoes.forEach(o => {
+                tbody.innerHTML += `<tr>
+                    <td><strong>${o.nome}</strong></td>
+                    <td>${o.descricao||'-'}</td>
+                    <td>${o.responsavel||'-'}</td>
+                    <td><span class="badge ${getBadgeStatus(o.status)}">${formatarStatus(o.status)}</span></td>
+                    <td class="td-actions">
+                        <button class="btn btn-outline-primary btn-icon" onclick="editarOperacao(${o.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-outline-danger btn-icon" onclick="deletarOperacao(${o.id})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+        }
+    }
+    
+    function renderizarAuditoria() {
+        const registros = app.auditoriaCache || [];
+        const tbody = document.getElementById('auditoriaTableBody');
+        tbody.innerHTML = '';
+        if (registros.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted">Nenhum registro</td></tr>`; } 
+        else {
+            registros.slice(0, 50).forEach(r => {
+                tbody.innerHTML += `<tr>
+                    <td>${formatarDataHora(r.data)}</td>
+                    <td>${r.usuario_nome||getUsuarioNome(r.usuario_id)}</td>
+                    <td><span class="badge bg-info">${r.acao}</span></td>
+                    <td>${r.detalhes}</td>
+                </tr>`;
+            });
+        }
+        document.getElementById('auditoriaTotal').textContent = `${registros.length} registros`;
+    }
+    
+    function renderizarForaEstoque() {
+        const itens = app.foraEstoqueCache || [];
+        const tbody = document.getElementById('foraEstoqueTableBody');
+        tbody.innerHTML = '';
+        if (itens.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Nenhum item</td></tr>`; } 
+        else {
+            itens.forEach(item => {
+                const u = getUsuario(item.usuario_id);
+                tbody.innerHTML += `<tr>
+                    <td><code>${item.tracking||'-'}</code></td>
+                    <td><code>${item.pn}</code></td>
+                    <td>${item.descricao}</td>
+                    <td>${item.quantidade}</td>
+                    <td>${formatarStatus(item.motivo)}</td>
+                    <td>${formatarData(item.data)}</td>
+                    <td>${u?u.nome:'-'}</td>
+                    <td>${app.usuarioLogado.tipo==='admin'?`<button class="btn btn-success btn-sm" onclick="restaurarProduto(${item.id})"><i class="fas fa-undo"></i></button>`:'-'}</td>
+                </tr>`;
+            });
+        }
+    }
+    
+    function renderizarBackups() {
+        const backups = app.backupsCache || [];
+        const container = document.getElementById('backupLista');
+        if (backups.length === 0) { container.innerHTML = '<p class="text-muted text-center">Nenhum backup disponível</p>'; return; }
+        container.innerHTML = backups.slice(-10).reverse().map(b => `
+            <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                <div><strong>${formatarDataHora(b.data)}</strong><span class="badge bg-secondary">${b.tipo||'completo'}</span></div>
+                <span class="text-muted">${b.tamanho||'-'}</span>
+            </div>
+        `).join('');
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO
+    // ============================================================
+    
+    async function carregarDadosIniciais() {
+        try {
+            mostrarToast('Carregando dados...', 'info');
+            
+            const [produtos, solicitacoes, usuarios, operacoes, entradas, saidas, auditoria, foraEstoque, backups] = await Promise.all([
+                db.listar('produtos'),
+                db.listar('solicitacoes'),
+                db.listar('usuarios'),
+                db.listar('operacoes'),
+                db.listar('entradas'),
+                db.listar('saidas'),
+                db.listar('auditoria'),
+                db.listar('foraEstoque'),
+                db.listar('backups')
+            ]);
+            
+            app.produtosCache = produtos;
+            app.solicitacoesCache = solicitacoes;
+            app.usuariosCache = usuarios;
+            app.operacoesCache = operacoes;
+            app.entradasCache = entradas;
+            app.saidasCache = saidas;
+            app.auditoriaCache = auditoria;
+            app.foraEstoqueCache = foraEstoque;
+            app.backupsCache = backups;
+            
+            // Atualizar selects
+            carregarSelects();
+            
+            // Renderizar tudo
+            renderizarDashboard();
+            renderizarEstoque();
+            renderizarMinhasSolicitacoes();
+            renderizarEntradas();
+            renderizarSaidas();
+            renderizarSolicitacoes();
+            renderizarProdutos();
+            renderizarUsuarios();
+            renderizarValores();
+            renderizarOperacoes();
+            renderizarAuditoria();
+            renderizarForaEstoque();
+            renderizarBackups();
+            atualizarNotificacoes();
+            
+            mostrarToast('Dados carregados com sucesso!', 'success');
+        } catch (error) {
+            console.error('Erro ao carregar dados:', error);
+            mostrarToast('Erro ao carregar dados: ' + error.message, 'error');
+        }
+    }
+    
+    function carregarSelects() {
+        const ops = app.operacoesCache || [];
+        ['cadastroOperacao', 'relatorioOperacao'].forEach(id => {
+            const s = document.getElementById(id);
+            if (!s) return;
+            const val = s.value;
+            s.innerHTML = '<option value="">Selecione</option>';
+            ops.forEach(o => { const opt = document.createElement('option'); opt.value = o.nome; opt.textContent = o.nome; s.appendChild(opt); });
+            if (val) s.value = val;
+        });
+        
+        // Entrada produto select
+        const select = document.getElementById('entradaProduto');
+        if (select) {
+            const val = select.value;
+            select.innerHTML = '<option value="">Selecione</option>';
+            app.produtosCache.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.descricao} (${p.pn}) - Qtd: ${p.quantidade}`;
+                select.appendChild(opt);
+            });
+            if (val) select.value = val;
+        }
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - PRODUTOS
+    // ============================================================
+    
+    async function salvarNovoProduto() {
+        const form = document.getElementById('formNovoProduto');
+        if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+        
+        const produto = {
+            tracking: document.getElementById('produtoTracking').value,
+            cl: document.getElementById('produtoCL').value || '',
+            alt: document.getElementById('produtoAlt').value || '',
+            pn: document.getElementById('produtoPN').value,
+            descricao: document.getElementById('produtoDescricao').value,
+            categoria: document.getElementById('produtoCategoria').value,
+            quantidade: parseInt(document.getElementById('produtoQuantidade').value) || 0,
+            localizacao: document.getElementById('produtoLocalizacao').value || '',
+            status: document.getElementById('produtoStatus').value,
+            valor: parseFloat(document.getElementById('produtoValor').value) || 0,
+            observacoes: document.getElementById('produtoObservacoes').value || '',
+            data_cadastro: new Date().toISOString().split('T')[0]
+        };
+        
+        const result = await db.adicionar('produtos', produto);
+        if (result) {
+            await registrarAuditoriaSistema('Cadastro de peça', `Cadastrou: ${produto.descricao} (${produto.pn})`);
+            mostrarToast('Peça cadastrada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('modalNovoProduto')).hide();
+            await carregarDadosIniciais();
+        } else {
+            mostrarToast('Erro ao cadastrar peça', 'error');
+        }
+    }
+    
+    async function editarProduto(id) {
+        const produto = app.produtosCache.find(p => p.id === id);
+        if (!produto) return;
+        
+        document.getElementById('editarProdutoId').value = id;
+        document.getElementById('editarTracking').value = produto.tracking || '';
+        document.getElementById('editarCL').value = produto.cl || '';
+        document.getElementById('editarAlt').value = produto.alt || '';
+        document.getElementById('editarPN').value = produto.pn;
+        document.getElementById('editarDescricao').value = produto.descricao;
+        document.getElementById('editarCategoria').value = produto.categoria || 'Outros';
+        document.getElementById('editarQuantidade').value = produto.quantidade;
+        document.getElementById('editarLocalizacao').value = produto.localizacao || '';
+        document.getElementById('editarStatus').value = produto.status;
+        document.getElementById('editarValor').value = produto.valor || 0;
+        document.getElementById('editarObservacoes').value = produto.observacoes || '';
+        
+        new bootstrap.Modal(document.getElementById('modalEditarProduto')).show();
+    }
+    
+    async function atualizarProduto() {
+        const form = document.getElementById('formEditarProduto');
+        if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+        
+        const id = parseInt(document.getElementById('editarProdutoId').value);
+        const dados = {
+            tracking: document.getElementById('editarTracking').value,
+            cl: document.getElementById('editarCL').value || '',
+            alt: document.getElementById('editarAlt').value || '',
+            pn: document.getElementById('editarPN').value,
+            descricao: document.getElementById('editarDescricao').value,
+            categoria: document.getElementById('editarCategoria').value,
+            quantidade: parseInt(document.getElementById('editarQuantidade').value),
+            localizacao: document.getElementById('editarLocalizacao').value || '',
+            status: document.getElementById('editarStatus').value,
+            valor: parseFloat(document.getElementById('editarValor').value) || 0,
+            observacoes: document.getElementById('editarObservacoes').value || ''
+        };
+        
+        const result = await db.atualizar('produtos', id, dados);
+        if (result) {
+            await registrarAuditoriaSistema('Edição de peça', `Editou peça ID ${id}`);
+            mostrarToast('Peça atualizada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarProduto')).hide();
+            await carregarDadosIniciais();
+        } else {
+            mostrarToast('Erro ao atualizar peça', 'error');
+        }
+    }
+    
+    async function removerProduto(id) {
+        const produto = app.produtosCache.find(p => p.id === id);
+        if (!produto) return;
+        if (produto.status === 'obsoleto') { mostrarToast('Esta peça já está obsoleta', 'warning'); return; }
+        
+        document.getElementById('removerProdutoId').value = id;
+        new bootstrap.Modal(document.getElementById('modalRemoverProduto')).show();
+    }
+    
+    async function confirmarRemocaoProduto() {
+        const id = parseInt(document.getElementById('removerProdutoId').value);
+        const motivo = document.getElementById('removerMotivo').value;
+        const justificativa = document.getElementById('removerJustificativa').value;
+        if (!motivo || !justificativa) { mostrarToast('Preencha todos os campos', 'warning'); return; }
+        
+        const produto = app.produtosCache.find(p => p.id === id);
+        if (!produto) return;
+        
+        await db.adicionar('foraEstoque', {
+            produto_id: id,
+            tracking: produto.tracking || '',
+            pn: produto.pn,
+            descricao: produto.descricao,
+            quantidade: produto.quantidade,
+            motivo: motivo,
+            justificativa: justificativa,
+            data: new Date().toISOString().split('T')[0],
+            usuario_id: app.usuarioLogado.id
+        });
+        
+        await db.atualizar('produtos', id, { status: 'obsoleto', quantidade: 0 });
+        await registrarAuditoriaSistema('Remoção de peça', `Removeu: ${produto.descricao} - Motivo: ${motivo}`);
+        mostrarToast('Peça removida do estoque!');
+        bootstrap.Modal.getInstance(document.getElementById('modalRemoverProduto')).hide();
+        await carregarDadosIniciais();
+    }
+    
+    async function restaurarProduto(id) {
+        const item = app.foraEstoqueCache.find(f => f.id === id);
+        if (!item) return;
+        
+        await db.atualizar('produtos', item.produto_id, { status: 'good', quantidade: item.quantidade || 1 });
+        await db.deletar('foraEstoque', id);
+        await registrarAuditoriaSistema('Restauração de peça', `Restaurou: ${item.descricao}`);
+        mostrarToast('Peça restaurada com sucesso!');
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - SOLICITAÇÕES
+    // ============================================================
+    
+    function abrirNovaSolicitacao() {
+        document.getElementById('formNovaSolicitacao').reset();
+        document.getElementById('solicitacaoProdutoId').value = '';
+        document.getElementById('solicitacaoProdutoNome').value = '';
+        document.getElementById('solicitacaoProdutoPN').value = '';
+        document.getElementById('solicitacaoDisponivel').value = '';
+        document.getElementById('solicitacaoBusca').value = '';
+        document.getElementById('solicitacaoInfo').innerHTML = 'Digite para buscar uma peça...';
+        document.getElementById('estoqueZeradoMsg').style.display = 'none';
+        document.getElementById('autocompleteList').classList.remove('show');
+        
+        // Recarregar lista de autocomplete
+        setTimeout(() => {
+            const input = document.getElementById('solicitacaoBusca');
+            if (input) { input.value = ''; input.dispatchEvent(new Event('input')); }
+        }, 100);
+        
+        new bootstrap.Modal(document.getElementById('modalNovaSolicitacao')).show();
+    }
+    
+    async function enviarSolicitacao() {
+        const produtoId = parseInt(document.getElementById('solicitacaoProdutoId').value);
+        const quantidade = parseInt(document.getElementById('solicitacaoQuantidade').value);
+        if (!produtoId) { mostrarToast('Selecione uma peça', 'warning'); return; }
+        if (!quantidade || quantidade < 1) { mostrarToast('Informe uma quantidade válida', 'warning'); return; }
+        
+        const produto = app.produtosCache.find(p => p.id === produtoId);
+        if (!produto) { mostrarToast('Peça não encontrada', 'error'); return; }
+        
+        const semEstoque = produto.quantidade === 0 || quantidade > produto.quantidade;
+        const statusFinal = semEstoque ? 'aguardando' : 'pendente';
+        
+        const solicitacao = {
+            produto_id: produtoId,
+            usuario_id: app.usuarioLogado.id,
+            usuario_nome: app.usuarioLogado.nome,
+            quantidade: quantidade,
+            data: new Date().toISOString().split('T')[0],
+            status: statusFinal,
+            observacoes: document.getElementById('solicitacaoObservacoes').value || '',
+            justificativa: semEstoque ? 'Sem estoque disponível' : '',
+            defeito: document.getElementById('solicitacaoDefeito').checked
+        };
+        
+        const result = await db.adicionar('solicitacoes', solicitacao);
+        if (result) {
+            await registrarAuditoriaSistema('Nova solicitação', `${app.usuarioLogado.nome} solicitou ${quantidade}x ${produto.descricao}${semEstoque?' (sem estoque)':''}`);
+            mostrarToast(semEstoque?'Solicitação enviada! Aguardando reposição.':'Solicitação enviada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('modalNovaSolicitacao')).hide();
+            await carregarDadosIniciais();
+        } else {
+            mostrarToast('Erro ao enviar solicitação', 'error');
+        }
+    }
+    
+    async function cancelarSolicitacao(id) {
+        if (!confirm('Cancelar esta solicitação?')) return;
+        const s = app.solicitacoesCache.find(sol => sol.id === id);
+        if (s && s.status === 'pendente') {
+            await db.atualizar('solicitacoes', id, { status: 'cancelada' });
+            await registrarAuditoriaSistema('Cancelamento', `Cancelou solicitação #${id}`);
+            mostrarToast('Solicitação cancelada!');
+            await carregarDadosIniciais();
+        }
+    }
+    
+    function abrirProcessarSolicitacao(id) {
+        document.getElementById('processarSolicitacaoId').value = id;
+        document.getElementById('processarAcao').value = '';
+        document.getElementById('processarJustificativa').value = '';
+        new bootstrap.Modal(document.getElementById('modalProcessarSolicitacao')).show();
+    }
+    
+    async function processarSolicitacao() {
+        const id = parseInt(document.getElementById('processarSolicitacaoId').value);
+        const acao = document.getElementById('processarAcao').value;
+        const justificativa = document.getElementById('processarJustificativa').value || '';
+        if (!acao) { mostrarToast('Selecione uma ação', 'warning'); return; }
+        
+        const solicitacao = app.solicitacoesCache.find(s => s.id === id);
+        if (!solicitacao) { mostrarToast('Solicitação não encontrada', 'error'); return; }
+        
+        const produto = app.produtosCache.find(p => p.id === solicitacao.produto_id);
+        
+        // Verificar estoque se for aprovar ou entregar
+        if (acao === 'aprovada' || acao === 'entregue' || acao === 'separando') {
+            if (!produto) { mostrarToast('Peça não encontrada', 'error'); return; }
+            if (produto.quantidade < solicitacao.quantidade) {
+                mostrarToast(`Estoque insuficiente! Disponível: ${produto.quantidade}`, 'warning');
+                await db.atualizar('solicitacoes', id, { status: 'aguardando', justificativa: `Estoque insuficiente. Disponível: ${produto.quantidade}` });
+                mostrarToast('Solicitação alterada para "Aguardando Estoque"');
+                await carregarDadosIniciais();
+                bootstrap.Modal.getInstance(document.getElementById('modalProcessarSolicitacao')).hide();
+                return;
+            }
+            
+            if (acao === 'entregue') {
+                const novaQtd = produto.quantidade - solicitacao.quantidade;
+                await db.atualizar('produtos', produto.id, { quantidade: novaQtd });
+                await db.adicionar('saidas', {
+                    produto_id: solicitacao.produto_id,
+                    quantidade: solicitacao.quantidade,
+                    data: new Date().toISOString().split('T')[0],
+                    usuario_id: solicitacao.usuario_id,
+                    operacao: app.usuarioLogado.operacao || '',
+                    status: 'entregue',
+                    observacoes: justificativa
+                });
+            }
+        }
+        
+        await db.atualizar('solicitacoes', id, { status: acao, justificativa: justificativa });
+        
+        const acaoNome = { 'aprovada':'Aprovou','separando':'Separando','entregue':'Entregou','rejeitada':'Rejeitou','aguardando':'Aguardando Estoque' };
+        await registrarAuditoriaSistema('Processamento de solicitação', `${acaoNome[acao]||acao} solicitação #${id} - ${justificativa}`);
+        mostrarToast(`Solicitação ${acao==='rejeitada'?'rejeitada':'processada'} com sucesso!`);
+        
+        bootstrap.Modal.getInstance(document.getElementById('modalProcessarSolicitacao')).hide();
+        
+        // Imprimir etiqueta se entregue
+        if (acao === 'entregue' && produto && app.usuarioLogado.tipo === 'admin') {
+            imprimirEtiqueta(produto, solicitacao);
+        }
+        
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - DEVOLUÇÃO BAD
+    // ============================================================
+    
+    function devolverBad(solicitacaoId) {
+        const solicitacao = app.solicitacoesCache.find(s => s.id === solicitacaoId);
+        if (!solicitacao) return;
+        
+        document.getElementById('devolucaoProdutoId').value = solicitacao.produto_id;
+        document.getElementById('devolucaoQuantidade').value = solicitacao.quantidade;
+        document.getElementById('devolucaoLocalizacao').value = '';
+        document.getElementById('devolucaoDefeito').value = '';
+        document.getElementById('devolucaoObservacoes').value = '';
+        document.getElementById('devolucaoProdutoId').dataset.solicitacaoId = solicitacaoId;
+        
+        new bootstrap.Modal(document.getElementById('modalDevolucaoBad')).show();
+    }
+    
+    async function confirmarDevolucaoBad() {
+        const produtoId = parseInt(document.getElementById('devolucaoProdutoId').value);
+        const solicitacaoId = parseInt(document.getElementById('devolucaoProdutoId').dataset.solicitacaoId);
+        const localizacao = document.getElementById('devolucaoLocalizacao').value;
+        const defeito = document.getElementById('devolucaoDefeito').value;
+        const observacoes = document.getElementById('devolucaoObservacoes').value || '';
+        
+        if (!localizacao || !defeito) { mostrarToast('Preencha localização e defeito', 'warning'); return; }
+        
+        const solicitacao = app.solicitacoesCache.find(s => s.id === solicitacaoId);
+        if (!solicitacao) { mostrarToast('Solicitação não encontrada', 'error'); return; }
+        
+        const produto = app.produtosCache.find(p => p.id === produtoId);
+        if (!produto) { mostrarToast('Peça não encontrada', 'error'); return; }
+        
+        await db.adicionar('produtos', {
+            tracking: `${produto.tracking||'BAD'}-${Date.now()}`,
+            cl: produto.cl || '',
+            alt: produto.alt || '',
+            pn: produto.pn,
+            descricao: `${produto.descricao} (BAD)`,
+            categoria: produto.categoria || 'Outros',
+            quantidade: solicitacao.quantidade,
+            localizacao: localizacao,
+            status: 'bad',
+            valor: produto.valor * 0.3,
+            observacoes: `Devolvido de solicitação #${solicitacaoId} - Defeito: ${defeito} - ${observacoes}`,
+            data_cadastro: new Date().toISOString().split('T')[0]
+        });
+        
+        await db.adicionar('saidas', {
+            produto_id: produtoId,
+            quantidade: solicitacao.quantidade,
+            data: new Date().toISOString().split('T')[0],
+            usuario_id: app.usuarioLogado.id,
+            operacao: app.usuarioLogado.operacao || '',
+            status: 'devolvido_bad',
+            observacoes: `Devolvido como BAD - ${defeito}`
+        });
+        
+        await registrarAuditoriaSistema('Devolução BAD', `Devolveu ${solicitacao.quantidade}x ${produto.descricao} como BAD - ${defeito}`);
+        mostrarToast('Peça devolvida como BAD com sucesso!');
+        bootstrap.Modal.getInstance(document.getElementById('modalDevolucaoBad')).hide();
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - ACEITE
+    // ============================================================
+    
+    function abrirAceite(produtoId, quantidade) {
+        document.getElementById('aceiteProdutoId').value = produtoId;
+        document.getElementById('aceiteQuantidade').value = quantidade;
+        document.getElementById('aceiteStatus').value = 'good';
+        document.getElementById('aceiteLocalizacao').value = '';
+        document.getElementById('aceiteObservacoes').value = '';
+        new bootstrap.Modal(document.getElementById('modalAceite')).show();
+    }
+    
+    async function confirmarAceite() {
+        const produtoId = parseInt(document.getElementById('aceiteProdutoId').value);
+        const quantidade = parseInt(document.getElementById('aceiteQuantidade').value);
+        const status = document.getElementById('aceiteStatus').value;
+        const localizacao = document.getElementById('aceiteLocalizacao').value;
+        const observacoes = document.getElementById('aceiteObservacoes').value || '';
+        
+        if (!localizacao) { mostrarToast('Informe a localização', 'warning'); return; }
+        
+        const produto = app.produtosCache.find(p => p.id === produtoId);
+        if (!produto) { mostrarToast('Peça não encontrada', 'error'); return; }
+        
+        if (status === 'good') {
+            const novaQtd = produto.quantidade + quantidade;
+            await db.atualizar('produtos', produtoId, { quantidade: novaQtd, localizacao: localizacao, status: 'good', observacoes: observacoes || produto.observacoes });
+            await db.adicionar('entradas', {
+                produto_id: produtoId,
+                quantidade: quantidade,
+                localizacao: localizacao,
+                status: 'good',
+                data: new Date().toISOString().split('T')[0],
+                usuario_id: app.usuarioLogado.id,
+                observacoes: `Aceite de peça - ${observacoes}`
+            });
+            await registrarAuditoriaSistema('Aceite de peça', `Aceitou ${quantidade}x ${produto.descricao} como GOOD`);
+            mostrarToast('Peça aceita como GOOD com sucesso!');
+        } else {
+            await db.adicionar('produtos', {
+                tracking: `${produto.tracking||'ACE'}-${Date.now()}`,
+                cl: produto.cl || '',
+                alt: produto.alt || '',
+                pn: produto.pn,
+                descricao: produto.descricao,
+                categoria: produto.categoria || 'Outros',
+                quantidade: quantidade,
+                localizacao: localizacao,
+                status: status,
+                valor: status === 'refurbished' ? produto.valor * 0.5 : produto.valor * 0.2,
+                observacoes: `Aceito como ${status} - ${observacoes}`,
+                data_cadastro: new Date().toISOString().split('T')[0]
+            });
+            await registrarAuditoriaSistema('Aceite de peça', `Aceitou ${quantidade}x ${produto.descricao} como ${status}`);
+            mostrarToast(`Peça aceita como ${formatarStatus(status)}!`);
+        }
+        
+        bootstrap.Modal.getInstance(document.getElementById('modalAceite')).hide();
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - SAÍDAS
+    // ============================================================
+    
+    async function entregarSaida(id) {
+        const saida = app.saidasCache.find(s => s.id === id);
+        if (!saida) return;
+        if (!confirm('Confirmar entrega desta saída?')) return;
+        
+        await db.atualizar('saidas', id, { status: 'entregue' });
+        
+        const solicitacoes = app.solicitacoesCache.filter(s => 
+            s.produto_id === saida.produto_id && 
+            s.usuario_id === saida.usuario_id &&
+            s.status === 'separando'
+        );
+        if (solicitacoes.length > 0) {
+            await db.atualizar('solicitacoes', solicitacoes[0].id, { status: 'entregue' });
+        }
+        
+        const produto = app.produtosCache.find(p => p.id === saida.produto_id);
+        if (produto && app.usuarioLogado.tipo === 'admin') {
+            const solicitacao = solicitacoes[0] || { quantidade: saida.quantidade, usuario_id: saida.usuario_id };
+            imprimirEtiqueta(produto, { quantidade: saida.quantidade, usuario_id: saida.usuario_id, data: saida.data });
+        }
+        
+        mostrarToast('Saída entregue com sucesso!');
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // IMPRESSÃO DE ETIQUETA
+    // ============================================================
+    
+    function imprimirEtiqueta(produto, solicitacao) {
+        const usuario = getUsuario(solicitacao.usuario_id);
+        const data = new Date().toISOString().split('T')[0];
+        
+        const div = document.createElement('div');
+        div.className = 'etiqueta-print';
+        div.style.cssText = `width:80mm;height:50mm;padding:2.5mm;background:white;font-family:'Courier New',monospace;font-size:7pt;display:block;box-sizing:border-box;`;
+        
+        div.innerHTML = `
+            <div style="border:1px solid #000;height:100%;padding:2mm;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="text-align:center;font-size:9pt;font-weight:bold;border-bottom:1px solid #000;padding-bottom:1px;">SDI - CONTROLE DE ESTOQUE</div>
+                <div style="text-align:center;font-size:13pt;font-weight:bold;margin:2px 0;line-height:1.2;">${produto.descricao}</div>
+                <div style="text-align:center;font-size:9pt;font-weight:bold;">PN: ${produto.pn}</div>
+                <div style="display:flex;justify-content:space-between;font-size:8pt;margin:1px 0;">
+                    <span>Tracking: ${produto.tracking||'-'}</span>
+                    <span>Qtd: ${solicitacao.quantidade}</span>
+                    <span>Local: ${produto.localizacao||'-'}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:7pt;color:#666;border-top:1px dashed #ccc;padding-top:1px;">
+                    <span>Usuário: ${usuario?usuario.nome:'-'}</span>
+                    <span>Data: ${formatarData(solicitacao.data||new Date())}</span>
+                </div>
+                <div style="text-align:center;font-size:6pt;color:#999;">${produto.pn} | ${produto.categoria||'Sem categoria'}</div>
+            </div>
+        `;
+        
+        document.body.appendChild(div);
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => { div.remove(); }, 500);
+        }, 200);
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - USUÁRIOS
+    // ============================================================
+    
+    async function cadastrarUsuario() {
+        const form = document.getElementById('formCadastroUsuario');
+        if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+        
+        const usuario = {
+            nome: document.getElementById('cadastroNome').value,
+            email: document.getElementById('cadastroEmail').value,
+            senha: document.getElementById('cadastroSenha').value,
+            operacao: document.getElementById('cadastroOperacao').value,
+            tipo: document.getElementById('cadastroTipo').value,
+            status: 'pendente',
+            data_cadastro: new Date().toISOString().split('T')[0]
+        };
+        
+        const existente = app.usuariosCache.find(u => u.email === usuario.email);
+        if (existente) { mostrarToast('Email já cadastrado', 'warning'); return; }
+        
+        const result = await db.adicionar('usuarios', usuario);
+        if (result) {
+            await registrarAuditoriaSistema('Cadastro de usuário', `Cadastrou: ${usuario.nome} (${usuario.email})`);
+            mostrarToast('Usuário cadastrado com sucesso! Aguardando aprovação.');
+            form.reset();
+            form.classList.remove('was-validated');
+            await carregarDadosIniciais();
+        } else {
+            mostrarToast('Erro ao cadastrar usuário', 'error');
+        }
+    }
+    
+    function abrirProcessarUsuario(id) {
+        document.getElementById('processarUsuarioId').value = id;
+        document.getElementById('processarUsuarioAcao').value = '';
+        document.getElementById('processarUsuarioJustificativa').value = '';
+        new bootstrap.Modal(document.getElementById('modalProcessarUsuario')).show();
+    }
+    
+    async function processarUsuario() {
+        const id = parseInt(document.getElementById('processarUsuarioId').value);
+        const acao = document.getElementById('processarUsuarioAcao').value;
+        const justificativa = document.getElementById('processarUsuarioJustificativa').value || '';
+        if (!acao) { mostrarToast('Selecione uma ação', 'warning'); return; }
+        
+        const usuario = app.usuariosCache.find(u => u.id === id);
+        if (!usuario) { mostrarToast('Usuário não encontrado', 'error'); return; }
+        
+        await db.atualizar('usuarios', id, { status: acao === 'aprovado' ? 'ativo' : 'rejeitado' });
+        await registrarAuditoriaSistema('Processamento de usuário', `${acao==='aprovado'?'Aprovou':'Rejeitou'} usuário ${usuario.nome}`);
+        mostrarToast(`Usuário ${acao==='aprovado'?'aprovado':'rejeitado'} com sucesso!`);
+        bootstrap.Modal.getInstance(document.getElementById('modalProcessarUsuario')).hide();
+        await carregarDadosIniciais();
+    }
+    
+    async function deletarUsuario(id) {
+        if (id === 1) { mostrarToast('Não é possível deletar o administrador principal', 'warning'); return; }
+        if (!confirm('Tem certeza que deseja deletar este usuário?')) return;
+        
+        const usuario = app.usuariosCache.find(u => u.id === id);
+        await db.deletar('usuarios', id);
+        await registrarAuditoriaSistema('Deleção de usuário', `Deletou usuário ${usuario?usuario.nome:id}`);
+        mostrarToast('Usuário deletado!');
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - OPERAÇÕES
+    // ============================================================
+    
+    async function salvarNovaOperacao() {
+        const form = document.getElementById('formNovaOperacao');
+        if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+        
+        const operacao = {
+            nome: document.getElementById('operacaoNome').value,
+            descricao: document.getElementById('operacaoDescricao').value || '',
+            responsavel: document.getElementById('operacaoResponsavel').value || '',
+            status: 'ativo'
+        };
+        
+        const result = await db.adicionar('operacoes', operacao);
+        if (result) {
+            await registrarAuditoriaSistema('Nova operação', `Cadastrou operação: ${operacao.nome}`);
+            mostrarToast('Operação cadastrada com sucesso!');
+            bootstrap.Modal.getInstance(document.getElementById('modalNovaOperacao')).hide();
+            await carregarDadosIniciais();
+        } else {
+            mostrarToast('Erro ao cadastrar operação', 'error');
+        }
+    }
+    
+    async function editarOperacao(id) {
+        const operacao = app.operacoesCache.find(o => o.id === id);
+        if (!operacao) return;
+        const novoNome = prompt('Novo nome da operação:', operacao.nome);
+        if (novoNome && novoNome.trim()) {
+            await db.atualizar('operacoes', id, { nome: novoNome.trim() });
+            mostrarToast('Operação atualizada!');
+            await carregarDadosIniciais();
+        }
+    }
+    
+    async function deletarOperacao(id) {
+        if (!confirm('Tem certeza que deseja deletar esta operação?')) return;
+        await db.deletar('operacoes', id);
+        mostrarToast('Operação deletada!');
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - ENTRADA
+    // ============================================================
+    
+    function abrirNovaEntrada() {
+        const select = document.getElementById('entradaProduto');
+        select.innerHTML = '<option value="">Selecione</option>';
+        app.produtosCache.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.descricao} (${p.pn}) - Qtd: ${p.quantidade}`;
+            select.appendChild(opt);
+        });
+        document.getElementById('formNovaEntrada').reset();
+        new bootstrap.Modal(document.getElementById('modalNovaEntrada')).show();
+    }
+    
+    async function salvarNovaEntrada() {
+        const form = document.getElementById('formNovaEntrada');
+        if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+        
+        const produtoId = parseInt(document.getElementById('entradaProduto').value);
+        const quantidade = parseInt(document.getElementById('entradaQuantidade').value);
+        const localizacao = document.getElementById('entradaLocalizacao').value || '';
+        const status = document.getElementById('entradaStatus').value;
+        const observacoes = document.getElementById('entradaObservacoes').value || '';
+        
+        const produto = app.produtosCache.find(p => p.id === produtoId);
+        if (!produto) { mostrarToast('Peça não encontrada', 'error'); return; }
+        
+        const novaQtd = produto.quantidade + quantidade;
+        await db.atualizar('produtos', produtoId, { quantidade: novaQtd, localizacao: localizacao || produto.localizacao, status: status });
+        await db.adicionar('entradas', {
+            produto_id: produtoId,
+            quantidade: quantidade,
+            localizacao: localizacao || produto.localizacao,
+            status: status,
+            data: new Date().toISOString().split('T')[0],
+            usuario_id: app.usuarioLogado.id,
+            observacoes: observacoes
+        });
+        
+        // Verificar solicitações aguardando
+        const aguardando = app.solicitacoesCache.filter(s => s.produto_id === produtoId && s.status === 'aguardando');
+        for (const s of aguardando) {
+            if (produto.quantidade >= s.quantidade) {
+                await db.atualizar('solicitacoes', s.id, { status: 'pendente' });
+                mostrarToast(`Solicitação #${s.id} agora tem estoque disponível!`, 'info');
+            }
+        }
+        
+        await registrarAuditoriaSistema('Nova entrada', `Entrada de ${quantidade}x ${produto.descricao} (${produto.pn})`);
+        mostrarToast('Entrada registrada com sucesso!');
+        bootstrap.Modal.getInstance(document.getElementById('modalNovaEntrada')).hide();
+        await carregarDadosIniciais();
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - BACKUP
+    // ============================================================
+    
+    async function fazerBackupCompleto() {
+        try {
+            const dados = {
+                produtos: app.produtosCache,
+                solicitacoes: app.solicitacoesCache,
+                usuarios: app.usuariosCache,
+                operacoes: app.operacoesCache,
+                entradas: app.entradasCache,
+                saidas: app.saidasCache,
+                auditoria: app.auditoriaCache,
+                foraEstoque: app.foraEstoqueCache,
+                dataBackup: new Date().toISOString()
+            };
+            
+            const json = JSON.stringify(dados, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_estoque_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            await db.adicionar('backups', {
+                data: new Date().toISOString(),
+                tipo: 'completo',
+                tamanho: `${(json.length / 1024).toFixed(2)} KB`,
+                dados: dados
+            });
+            
+            await registrarAuditoriaSistema('Backup', 'Realizou backup completo do sistema');
+            mostrarToast('Backup realizado com sucesso!');
+            await carregarDadosIniciais();
+        } catch (error) {
+            mostrarToast('Erro ao fazer backup: ' + error.message, 'error');
+        }
+    }
+    
+    // ============================================================
+    // FUNÇÕES DE AÇÃO - RELATÓRIOS
+    // ============================================================
+    
+    function gerarRelatorio() {
+        const tipo = document.getElementById('relatorioTipo').value;
+        const dataInicio = document.getElementById('relatorioDataInicio').value;
+        const dataFim = document.getElementById('relatorioDataFim').value;
+        const operacao = document.getElementById('relatorioOperacao').value;
+        
+        let dados = [];
+        let colunas = [];
+        
+        switch (tipo) {
+            case 'estoque':
+                dados = app.produtosCache;
+                colunas = ['#', 'Tracking', 'Part No.', 'Descrição', 'Categoria', 'Quantidade', 'Localização', 'Status', 'Valor'];
+                if (dataInicio || dataFim) {
+                    dados = dados.filter(p => {
+                        const d = p.data_cadastro || '';
+                        if (dataInicio && d < dataInicio) return false;
+                        if (dataFim && d > dataFim) return false;
+                        return true;
+                    });
+                }
+                break;
+            case 'movimentacao':
+                const entradas = app.entradasCache || [];
+                const saidas = app.saidasCache || [];
+                dados = [...entradas.map(e => ({ ...e, tipo: 'Entrada' })), ...saidas.map(s => ({ ...s, tipo: 'Saída' }))];
+                dados.sort((a, b) => new Date(b.data) - new Date(a.data));
+                colunas = ['#', 'Peça', 'Tipo', 'Quantidade', 'Data', 'Usuário'];
+                if (dataInicio || dataFim) {
+                    dados = dados.filter(d => {
+                        if (dataInicio && d.data < dataInicio) return false;
+                        if (dataFim && d.data > dataFim) return false;
+                        return true;
+                    });
+                }
+                break;
+            case 'solicitacoes':
+                dados = app.solicitacoesCache;
+                colunas = ['#', 'Peça', 'Usuário', 'Quantidade', 'Data', 'Status'];
+                if (dataInicio || dataFim) {
+                    dados = dados.filter(d => {
+                        if (dataInicio && d.data < dataInicio) return false;
+                        if (dataFim && d.data > dataFim) return false;
+                        return true;
+                    });
+                }
+                if (operacao !== 'todas') {
+                    const usuariosOp = app.usuariosCache.filter(u => u.operacao === operacao);
+                    const ids = usuariosOp.map(u => u.id);
+                    dados = dados.filter(d => ids.includes(d.usuario_id));
+                }
+                break;
+            case 'usuarios':
+                dados = app.usuariosCache;
+                colunas = ['#', 'Nome', 'Email', 'Operação', 'Tipo', 'Status'];
+                break;
+            default:
+                dados = [];
+        }
+        
+        const tbody = document.getElementById('relatorioTableBody');
+        tbody.innerHTML = '';
+        if (dados.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${colunas.length}" class="text-center text-muted">Nenhum dado encontrado</td></tr>`;
+            document.getElementById('relatorioTotal').textContent = '0 registros';
+            return;
+        }
+        
+        dados.forEach((item, index) => {
+            const tr = document.createElement('tr');
+            let cells = [];
+            switch (tipo) {
+                case 'estoque':
+                    cells = [index+1, item.tracking||'-', item.pn, item.descricao, item.categoria||'-', item.quantidade, item.localizacao||'-', `<span class="badge ${getBadgeStatus(item.status)}">${formatarStatus(item.status)}</span>`, `R$ ${(item.valor||0).toFixed(2)}`];
+                    break;
+                case 'movimentacao':
+                    const p = getProduto(item.produto_id);
+                    const u = getUsuario(item.usuario_id);
+                    cells = [index+1, p?p.descricao:'Peça removida', `<span class="badge ${item.tipo==='Entrada'?'badge-good':'badge-pendente'}">${item.tipo}</span>`, item.quantidade, formatarData(item.data), u?u.nome:'-'];
+                    break;
+                case 'solicitacoes':
+                    const p2 = getProduto(item.produto_id);
+                    const u2 = getUsuario(item.usuario_id);
+                    cells = [index+1, p2?p2.descricao:'Peça removida', u2?u2.nome:'-', item.quantidade, formatarData(item.data), `<span class="badge ${getBadgeStatus(item.status)}">${formatarStatus(item.status)}</span>`];
+                    break;
+                case 'usuarios':
+                    cells = [index+1, item.nome, item.email, item.operacao, `<span class="badge ${item.tipo==='admin'?'badge-primary':'badge-secondary'}">${item.tipo==='admin'?'Admin':'Usuário'}</span>`, `<span class="badge ${getBadgeStatus(item.status)}">${formatarStatus(item.status)}</span>`];
+                    break;
+            }
+            tr.innerHTML = cells.map(c => `<td>${c}</td>`).join('');
+            tbody.appendChild(tr);
+        });
+        
+        document.getElementById('relatorioTotal').textContent = `${dados.length} registros`;
+        app.dadosRelatorio = { dados, colunas, tipo };
+    }
+    
+    function exportarExcel() {
+        if (!app.dadosRelatorio || app.dadosRelatorio.dados.length === 0) {
+            mostrarToast('Gere um relatório primeiro', 'warning');
+            return;
+        }
+        
+        const { dados, colunas, tipo } = app.dadosRelatorio;
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Relatório');
+        worksheet.addRow(colunas);
+        
+        dados.forEach(item => {
+            const row = [];
+            colunas.forEach(col => {
+                let value = '';
+                switch (col) {
+                    case '#': value = row.length + 1; break;
+                    case 'Tracking': value = item.tracking || ''; break;
+                    case 'Part No.': value = item.pn || ''; break;
+                    case 'Descrição': value = item.descricao || ''; break;
+                    case 'Categoria': value = item.categoria || ''; break;
+                    case 'Quantidade': value = item.quantidade || 0; break;
+                    case 'Localização': value = item.localizacao || ''; break;
+                    case 'Status': value = formatarStatus(item.status); break;
+                    case 'Valor': value = item.valor || 0; break;
+                    case 'Peça': value = getProdutoNome(item.produto_id); break;
+                    case 'Tipo': value = item.tipo || ''; break;
+                    case 'Data': value = formatarData(item.data); break;
+                    case 'Usuário': value = getUsuarioNome(item.usuario_id); break;
+                    case 'Nome': value = item.nome || ''; break;
+                    case 'Email': value = item.email || ''; break;
+                    case 'Operação': value = item.operacao || ''; break;
+                    default: value = item[col.toLowerCase()] || '';
+                }
+                row.push(value);
+            });
+            worksheet.addRow(row);
+        });
+        
+        worksheet.columns.forEach(col => { col.width = 20; });
+        workbook.xlsx.writeBuffer().then(buffer => {
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, `relatorio_${tipo}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        });
+    }
+    
+    function exportarPDF() {
+        if (!app.dadosRelatorio || app.dadosRelatorio.dados.length === 0) {
+            mostrarToast('Gere um relatório primeiro', 'warning');
+            return;
+        }
+        
+        const { dados, colunas, tipo } = app.dadosRelatorio;
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        
+        doc.setFontSize(16);
+        doc.text(`Relatório de ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`, 20, 20);
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, 28);
+        
+        const headers = [colunas];
+        const rows = dados.map(item => {
+            return colunas.map(col => {
+                switch (col) {
+                    case '#': return rows.length + 1;
+                    case 'Tracking': return item.tracking || '';
+                    case 'Part No.': return item.pn || '';
+                    case 'Descrição': return item.descricao || '';
+                    case 'Categoria': return item.categoria || '';
+                    case 'Quantidade': return item.quantidade || 0;
+                    case 'Localização': return item.localizacao || '';
+                    case 'Status': return formatarStatus(item.status);
+                    case 'Valor': return `R$ ${(item.valor||0).toFixed(2)}`;
+                    case 'Peça': return getProdutoNome(item.produto_id);
+                    case 'Tipo': return item.tipo || '';
+                    case 'Data': return formatarData(item.data);
+                    case 'Usuário': return getUsuarioNome(item.usuario_id);
+                    case 'Nome': return item.nome || '';
+                    case 'Email': return item.email || '';
+                    case 'Operação': return item.operacao || '';
+                    default: return item[col.toLowerCase()] || '';
+                }
+            });
+        });
+        
+        doc.autoTable({ head: headers, body: rows, startY: 35, styles: { fontSize: 7 }, headStyles: { fillColor: [13,27,74], textColor: [255,255,255] }, alternateRowStyles: { fillColor: [240,242,245] } });
+        doc.save(`relatorio_${tipo}_${new Date().toISOString().slice(0,10)}.pdf`);
+    }
+    
+    // ============================================================
+    // LOGIN
+    // ============================================================
+    
+    async function init() {
+        const salvo = localStorage.getItem('usuario_sdi');
+        if (salvo) {
+            try {
+                const u = JSON.parse(salvo);
+                // Verificar se o usuário existe no banco
+                const usuario = app.usuariosCache.find(usr => usr.id === u.id && usr.status === 'ativo');
+                if (usuario) {
+                    app.usuarioLogado = usuario;
+                    entrarNoSistema();
+                    return;
+                }
+            } catch(e) {}
+        }
+        document.getElementById('loginPage').classList.remove('hidden');
+        document.getElementById('mainContent').classList.add('d-none');
+    }
+    
+    function entrarNoSistema() {
+        const u = app.usuarioLogado;
+        document.getElementById('loginPage').classList.add('hidden');
+        document.getElementById('mainContent').classList.remove('d-none');
+        document.getElementById('userName').textContent = u.nome;
+        document.getElementById('userOperation').textContent = u.operacao;
+        document.getElementById('userAvatar').textContent = u.nome.charAt(0).toUpperCase();
+        
+        const isAdmin = u.tipo === 'admin';
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('d-none', !isAdmin));
+        
+        configurarEventos();
+        setupAutocomplete();
+        
+        // Carregar dados e renderizar
+        carregarDadosIniciais().then(() => {
+            navegarPara('dashboard');
+        });
+    }
+    
+    // ============================================================
+    // EVENTOS
+    // ============================================================
+    
+    function configurarEventos() {
+        document.getElementById('mobileToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        });
+        
+        document.getElementById('sidebarOverlay').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebarOverlay').classList.remove('active');
+        });
+        
+        document.querySelectorAll('.sidebar-nav .nav-link[data-page]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const pagina = link.dataset.page;
+                navegarPara(pagina);
+                switch(pagina) {
+                    case 'dashboard': renderizarDashboard(); break;
+                    case 'estoque': renderizarEstoque(); break;
+                    case 'minhas-solicitacoes': renderizarMinhasSolicitacoes(); break;
+                    case 'entrada': renderizarEntradas(); break;
+                    case 'saida': renderizarSaidas(); break;
+                    case 'solicitacoes': renderizarSolicitacoes(); break;
+                    case 'produtos': renderizarProdutos(); break;
+                    case 'usuarios': renderizarUsuarios(); break;
+                    case 'valores': renderizarValores(); break;
+                    case 'operacoes': renderizarOperacoes(); break;
+                    case 'auditoria': renderizarAuditoria(); break;
+                    case 'fora-estoque': renderizarForaEstoque(); break;
+                    case 'backup': renderizarBackups(); break;
+                }
+            });
+        });
+        
+        document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            localStorage.removeItem('usuario_sdi');
+            await fazerLogout();
+            document.getElementById('loginPage').classList.remove('hidden');
+            document.getElementById('mainContent').classList.add('d-none');
+            app.usuarioLogado = null;
+        });
+        
+        document.getElementById('quickSolicitar').addEventListener('click', () => { navegarPara('minhas-solicitacoes'); setTimeout(abrirNovaSolicitacao, 300); });
+        document.getElementById('quickEntrada').addEventListener('click', () => { navegarPara('entrada'); setTimeout(abrirNovaEntrada, 300); });
+        document.getElementById('quickRelatorio').addEventListener('click', () => { navegarPara('relatorios'); });
+        document.getElementById('btnNovaSolicitacaoTop').addEventListener('click', () => { navegarPara('minhas-solicitacoes'); setTimeout(abrirNovaSolicitacao, 300); });
+        document.getElementById('btnNovaSolicitacao').addEventListener('click', abrirNovaSolicitacao);
+        document.getElementById('btnEnviarSolicitacao').addEventListener('click', enviarSolicitacao);
+        document.getElementById('btnNovaEntrada').addEventListener('click', abrirNovaEntrada);
+        document.getElementById('btnSalvarEntrada').addEventListener('click', salvarNovaEntrada);
+        document.getElementById('btnNovaOperacao').addEventListener('click', () => { document.getElementById('formNovaOperacao').reset(); document.getElementById('formNovaOperacao').classList.remove('was-validated'); new bootstrap.Modal(document.getElementById('modalNovaOperacao')).show(); });
+        document.getElementById('btnSalvarOperacao').addEventListener('click', salvarNovaOperacao);
+        document.getElementById('btnNovoUsuario').addEventListener('click', () => { navegarPara('cadastro-usuario'); });
+        document.getElementById('btnProcessarSolicitacao').addEventListener('click', processarSolicitacao);
+        document.getElementById('btnConfirmarDevolucao').addEventListener('click', confirmarDevolucaoBad);
+        document.getElementById('btnConfirmarAceite').addEventListener('click', confirmarAceite);
+        document.getElementById('btnProcessarUsuario').addEventListener('click', processarUsuario);
+        document.getElementById('btnBackupCompleto').addEventListener('click', fazerBackupCompleto);
+        document.getElementById('btnGerarRelatorio').addEventListener('click', gerarRelatorio);
+        document.getElementById('btnExportarExcel').addEventListener('click', exportarExcel);
+        document.getElementById('btnExportarPDF').addEventListener('click', exportarPDF);
+        
+        // Produtos
+        document.getElementById('btnNovoProduto').addEventListener('click', () => { document.getElementById('formNovoProduto').reset(); document.getElementById('formNovoProduto').classList.remove('was-validated'); new bootstrap.Modal(document.getElementById('modalNovoProduto')).show(); });
+        document.getElementById('btnNovoProdutoGestao').addEventListener('click', () => { document.getElementById('formNovoProduto').reset(); document.getElementById('formNovoProduto').classList.remove('was-validated'); new bootstrap.Modal(document.getElementById('modalNovoProduto')).show(); });
+        document.getElementById('btnSalvarProduto').addEventListener('click', salvarNovoProduto);
+        document.getElementById('btnAtualizarProduto').addEventListener('click', atualizarProduto);
+        document.getElementById('btnConfirmarRemocao').addEventListener('click', confirmarRemocaoProduto);
+        
+        // Filtros
+        document.getElementById('estoqueFiltroCategoria').addEventListener('change', () => { app.pagina.produtos = 1; renderizarEstoque(); });
+        document.getElementById('estoqueSearch').addEventListener('keyup', (e) => { if (e.key === 'Enter') { app.pagina.produtos = 1; renderizarEstoque(); } });
+        document.getElementById('solicitacoesFiltroStatus').addEventListener('change', () => { app.pagina.solicitacoes = 1; renderizarSolicitacoes(); });
+        
+        document.getElementById('globalSearch').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                const termo = e.target.value.toLowerCase();
+                if (termo.length > 0) { navegarPara('estoque'); document.getElementById('estoqueSearch').value = termo; renderizarEstoque(); }
+            }
+        });
+        
+        document.getElementById('formCadastroUsuario').addEventListener('submit', (e) => { e.preventDefault(); cadastrarUsuario(); });
+        
+        // Login
+        document.getElementById('formLogin').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const senha = document.getElementById('loginSenha').value.trim();
+            const errorDiv = document.getElementById('loginError');
+            errorDiv.classList.remove('show');
+            
+            document.getElementById('loginSpinner').classList.remove('d-none');
+            document.getElementById('loginText').textContent = 'Entrando...';
+            
+            const result = await fazerLogin(email, senha);
+            
+            document.getElementById('loginSpinner').classList.add('d-none');
+            document.getElementById('loginText').textContent = 'Entrar';
+            
+            if (result.success) {
+                const usuario = app.usuariosCache.find(u => u.email === email);
+                if (usuario) {
+                    if (usuario.status === 'pendente') { errorDiv.textContent = 'Usuário aguardando aprovação.'; errorDiv.classList.add('show'); return; }
+                    if (usuario.status === 'rejeitado') { errorDiv.textContent = 'Usuário rejeitado.'; errorDiv.classList.add('show'); return; }
+                    if (usuario.status === 'inativo') { errorDiv.textContent = 'Usuário inativo.'; errorDiv.classList.add('show'); return; }
+                    app.usuarioLogado = usuario;
+                    localStorage.setItem('usuario_sdi', JSON.stringify(usuario));
+                    await registrarAuditoriaSistema('Login', `${usuario.nome} fez login`);
+                    entrarNoSistema();
+                } else {
+                    errorDiv.textContent = 'Usuário não encontrado no sistema.';
+                    errorDiv.classList.add('show');
+                }
+            } else {
+                errorDiv.textContent = result.error || 'Email ou senha inválidos.';
+                errorDiv.classList.add('show');
+            }
+        });
+    }
+    
+    // ============================================================
+    // INICIAR
+    // ============================================================
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Verificar se a configuração foi feita
+        if (SUPABASE_URL === 'https://SEU_PROJETO.supabase.co' || SUPABASE_ANON_KEY === 'SUA_CHAVE_ANON_AQUI') {
+            document.getElementById('loginPage').querySelector('.login-card').innerHTML = `
+                <div class="logo"><h2><i class="fas fa-exclamation-triangle" style="color:#f57f17;"></i> Configuração Necessária</h2></div>
+                <div class="alert alert-warning">
+                    <p><strong>Configure o Supabase!</strong></p>
+                    <p>Edite o arquivo HTML e substitua:</p>
+                    <ul style="text-align:left;font-size:0.85rem;">
+                        <li><code>SUPABASE_URL</code> com a URL do seu projeto</li>
+                        <li><code>SUPABASE_ANON_KEY</code> com sua chave anônima</li>
+                    </ul>
+                    <p class="mt-2">As credenciais estão no início do script JavaScript.</p>
+                </div>
+            `;
+            document.getElementById('loginPage').classList.remove('hidden');
+            return;
+        }
+        
+        // Carregar dados antes de iniciar
+        carregarDadosIniciais().then(() => {
+            init();
+        });
+    });
+    
+    console.log('✅ SDI Estoque com Supabase carregado!');
+    console.log('🔑 Login: admin@sdi.com / admin123');
+    console.log('📦 Versão: 2.0 com Supabase');
+    </script>
+</body>
+</html>
